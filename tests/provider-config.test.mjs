@@ -128,6 +128,25 @@ test('function deployments preserve IAM/key authentication defaults', async () =
 });
 
 
+test('ConoHa Terraform admits only operator SSH and keeps state and credentials out of Git', async () => {
+  const read = path => readFile(new URL(`../providers/conoha/terraform/${path}`, import.meta.url), 'utf8');
+  const main = await read('main.tf');
+  const variables = await read('variables.tf');
+  const versions = await read('versions.tf');
+  assert.match(versions, /source\s*=\s*"gmo-internet\/conohavps"/);
+  assert.match(versions, /provider "conohavps" \{\}/, 'credentials come from the environment');
+  // Only port 22, only from the given CIDRs, and not ConoHa's world-open SSH group.
+  assert.equal(main.match(/resource "conohavps_securitygroup_rule"/g).length, 1);
+  assert.match(main, /port_range_min\s*=\s*22\s*\n\s*port_range_max\s*=\s*22/);
+  assert.match(main, /remote_ip_prefix\s*=\s*each\.value/);
+  assert.match(main, /security_group\s*=\s*\[\{ name = conohavps_securitygroup\.ssh\.name \}\]/);
+  assert.doesNotMatch(main, /IPv4v6-SSH|0\.0\.0\.0\/0|::\/0/);
+  assert.match(variables, /variable "ssh_allowed_cidrs" \{(?:(?!default\s*=)[\s\S])*?validation/, 'no default CIDR');
+  assert.match(variables, /"0\.0\.0\.0\/0", "::\/0"/);
+  const gitIgnore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8');
+  for (const entry of ['.terraform/', '*.tfstate', '*.tfvars', '!*.tfvars.example']) assert.ok(gitIgnore.includes(entry), entry);
+});
+
 test('local credential and tool outputs are excluded from source and Docker context', async () => {
   const gitIgnore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8');
   const dockerIgnore = await readFile(new URL('../.dockerignore', import.meta.url), 'utf8');
