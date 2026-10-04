@@ -46,7 +46,8 @@ restart, Wasm, Node adapters, local workerd KV, Compose with a named volume and 
 container restart) and live on Cloudflare Workers with KV, on the Cloud Run
 container with Almide reading and writing Cloud Storage itself, and on Cloud Run
 functions with Cloud Storage; each store held exactly the two saved notes
-afterwards. The ConoHa VPS run predates `/notes`.
+afterwards. On the ConoHa VPS (x86_64, created with Terraform) the scenario passed,
+the volume file held the two notes, and they survived a container restart.
 
 GitHub Actions (`ubuntu-24.04`, compiler install and every reproduction step) has
 passed. See [verification notes](docs/verification.md) for exact commands and limits.

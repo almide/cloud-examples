@@ -297,7 +297,7 @@ Live:
      and wrote with `fetch`. 18/18 and the scenario 11/11 (octet-stream bodies)
    - Each bucket's `notes` object held exactly the two saved notes
      (`application/json`, 53 bytes); unauthenticated requests got 403
-3. The ConoHa VPS was not rerun with `/notes` (its run predates it)
+3. The ConoHa VPS: see [ConoHa VPS with /notes](#conoha-vps-with-notes)
 
 Not shown: behavior under concurrent writers. The single-key read-modify-write
 has no conditional write, so concurrent instances can lose a note.
@@ -333,10 +333,28 @@ The application was main at `c904bf7`.
      `gcf-v2-sources-*` bucket and `gcf-artifacts` repository were not managed
      by Terraform and remained until the project was deleted
 
+## ConoHa VPS with /notes
+
+Date: 2026-10-04, main at `e73081a`, the same Terraform (`g2l-t-c4m4`, SSH from
+the operator's /32 only); the provider installed with `go install` and
+`~/.terraformrc` dev_overrides.
+
+1. `terraform apply`: 5 resources in about 30 s; Ubuntu x86_64, Docker 29.2.1
+2. cloud-init's first-boot upgrades took 714 s; `docker compose build` 98 s
+3. Through `ssh -L` to the VPS loopback: the 18 cases and the `/notes` scenario
+   passed (29/29). The container ran with `STORE_DIR=/data`, a read-only root
+   filesystem, UID 65532 and `CapDrop=[ALL]`; the app listened on
+   `127.0.0.1:8080` only and port 8080 on the public address was unreachable
+4. `notes.json` in the `conoha_notes` volume (owned by 65532) held exactly the
+   two saved notes; after `docker compose down` (0.6 s) and `up` the list was
+   unchanged
+5. `terraform destroy` removed all 5; only the account's existing server and
+   its volume remained
+
 ## Not established
 
 - Native x86_64 Docker build outside the ConoHa VPS
-- `/notes` on the ConoHa VPS, and `/notes` under concurrent writers on any route
+- `/notes` under concurrent writers on any route
 - ConoHa TLS/reverse proxy, restart behavior, production load, or plans smaller
   than `g2l-t-c4m4`
 - Azure Container Apps or ECS Fargate provider validation/deployment
