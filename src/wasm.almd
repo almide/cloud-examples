@@ -1,9 +1,73 @@
 import api
+import json
 
+// --- Storage on JS hosts -----------------------------------------------------
+// The host binds these two hooks to its store (Workers KV, Cloud Storage, or
+// memory). Its I/O is asynchronous; the build marks both hooks with
+// --async-import, so the glue suspends this module through JSPI until each
+// settles and they read here as ordinary calls.
+//
+// store_get answers {"value": <string or null>} or {"error": <message>}.
+// store_put answers "" when the write is made, otherwise the error message.
+
+@extern(wasm, "js", "store_get")
+local fn store_get(key: String) -> String
+
+@extern(wasm, "js", "store_put")
+local fn store_put(key: String, content: String) -> String
+
+local fn read_key(key: String) -> Result[Value, String] = match json.parse(store_get(key)) {
+  err(e) => err("store_get: " + e),
+  ok(reply) => match json.get_path(reply, json.field(json.root(), "value")) {
+    some(stored) => ok(stored),
+    none => err(json.get_string(reply, "error") ?? "store_get: no value"),
+  },
+}
+
+local fn read_all(keys: List[String], acc: List[(String, Value)]) -> Result[List[(String, Value)], String] =
+  match list.first(keys) {
+    none => ok(acc),
+    some(key) => match read_key(key) {
+      err(e) => err(e),
+      ok(stored) => read_all(list.drop(keys, 1), list.flatten([acc, [(key, stored)]])),
+    },
+  }
+
+local fn unavailable() -> String = "{\"status\":503,\"body\":{\"error\":\"storage_unavailable\"}}"
+
+// Runs api.step to a final envelope as the native host does: reads what it asks
+// for (at most twice), makes its write, and returns the envelope without it.
+local fn run(method: String, target: String, body: String, reads: List[(String, Value)], round: Int) -> String = {
+  let reply = api.step(method, target, body, json.stringify(value.object(reads)))
+  match json.parse(reply) {
+    err(_) => reply,
+    ok(envelope) => match json.get_array(envelope, "read") {
+      some(keys) => if round >= 2 then unavailable() else {
+        let names = list.filter_map(keys, (k) => match value.as_string(k) { ok(s) => some(s), err(_) => none })
+        match read_all(names, reads) {
+          ok(more) => run(method, target, body, more, round + 1),
+          err(e) => { eprintln("storage read failed: ${e}"); unavailable() },
+        }
+      },
+      none => match json.get_path(envelope, json.field(json.root(), "write")) {
+        none => reply,
+        some(w) => {
+          let failure = store_put(json.get_string(w, "key") ?? "", json.get_string(w, "value") ?? "")
+          if failure == "" then json.stringify(json.remove_path(envelope, json.field(json.root(), "write")))
+          else { eprintln("storage write failed: ${failure}"); unavailable() }
+        },
+      },
+    },
+  }
+}
+
+// Pure routes: never touches storage, so it stays a synchronous export.
 pub fn handle(method: String, target: String, body: String) -> String =
   api.handle(method, target, body)
 
-pub fn step(method: String, target: String, body: String, reads: String) -> String =
-  api.step(method, target, body, reads)
+// Every route, storage included. It reaches the async hooks, so the generated
+// JS exports it as a Promise.
+pub fn serve(method: String, target: String, body: String) -> String =
+  run(method, target, body, [], 0)
 
 fn main() -> Unit = {}

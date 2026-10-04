@@ -13,4 +13,5 @@ fi
 mkdir -p build
 "$almide" check src/native.almd
 "$almide" build src/native.almd -o build/server
-"$almide" build src/wasm.almd --target wasm --host js -o build/app.wasm
+# The storage hooks are async on every JS host: the glue suspends through JSPI.
+"$almide" build src/wasm.almd --target wasm --host js --async-import store_get,store_put -o build/app.wasm

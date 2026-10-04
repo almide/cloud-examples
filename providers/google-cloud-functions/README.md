@@ -45,8 +45,9 @@ export GCS_BUCKET=YOUR_EXISTING_BUCKET
 With `GCS_BUCKET`, `deploy.sh` adds `--set-env-vars GCS_BUCKET=...` and
 [adapters/gcs-store.mjs](../../adapters/gcs-store.mjs) stores `/notes` as the object
 `notes` with `fetch` and the metadata-server token (no SDK dependency). Grant the
-runtime account `roles/storage.objectUser` on that bucket only. The shared Almide
-`step` decides the read and the write; the Node host performs them.
+runtime account `roles/storage.objectUser` on that bucket only. Almide makes the
+read and the write itself through the `store_get` / `store_put` hooks, which the
+Node host binds to that store; the runtime must be Node 24 or newer (JSPI).
 
 From the repository root, `bash providers/google-cloud-functions/deploy.sh`
 only prints a reviewed, shell-escaped command. Adding `--execute` runs it and

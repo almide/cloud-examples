@@ -302,6 +302,42 @@ Live:
 Not shown: behavior under concurrent writers. The single-key read-modify-write
 has no conditional write, so concurrent instances can lose a note.
 
+## /notes on JS hosts: Almide calls the store through JSPI
+
+Date: 2026-10-04. Compiler: Almide `fix-3353` at `e9eb4bb90` (unreleased,
+[almide/almide#3353](https://github.com/almide/almide/issues/3353)), built locally
+and passed as `ALMIDE_BIN`. Node 24.21.0, Wrangler 4.147.0.
+
+The Wasm route used to return `step`'s reads and write to the JS host, which
+performed them (`adapters/step.mjs`). Now `src/wasm.almd` runs the same loop as
+the native host and calls the hooks `store_get` / `store_put` itself. The build
+passes `--async-import store_get,store_put`; the generated `app.d.ts` has
+`serve(...): Promise<string>` and `handle(...): string`.
+`adapters/store.mjs` binds the hooks to a store.
+
+Local:
+
+1. `npm test`: 158/158. Under Node 22 (no JSPI) the storage tests fail, and
+   `init()` refuses with a message naming the missing JSPI
+2. `npm run test:workers` (local workerd, fresh KV state): 29/29
+3. 20 concurrent `POST /notes` to local workerd: 20 × 201, and all 20 notes stored
+   with distinct `n` (one isolate runs one call at a time)
+4. `npm run check:workers`: bundle 41.05 KiB, `NOTES` bound
+
+Live (Cloudflare Workers, deployed with `wrangler deploy`, then deleted):
+
+1. KV namespace provisioned from the id-less binding; 18 cases + the scenario
+   passed (29/29)
+2. `wrangler tail`: 22 requests, every outcome `ok`, 0 exceptions
+3. 20 concurrent `POST /notes`: 20 × 201, but the list grew by only 5. Requests
+   spread over several isolates, and each does a read-modify-write of one KV key
+   with no conditional write. This is the limitation the root README describes,
+   now measured. It is unchanged by this route
+4. `wrangler delete` and `wrangler kv namespace delete`; the URL then answered
+   Cloudflare error 1042 (no Worker)
+
+Not yet run on this route: Cloud Run functions with `GCS_BUCKET`.
+
 ## Terraform for Cloudflare and Google
 
 Date: 2026-10-04, Terraform 1.14.9, providers cloudflare 5.26.0, google 8.5.0,
@@ -354,7 +390,7 @@ the operator's /32 only); the provider installed with `go install` and
 ## Not established
 
 - Native x86_64 Docker build outside the ConoHa VPS
-- `/notes` under concurrent writers on any route
+- `/notes` under concurrent writers is safe on any route (measured on Workers: writes are lost across isolates)
 - ConoHa TLS/reverse proxy, restart behavior, production load, or plans smaller
   than `g2l-t-c4m4`
 - Azure Container Apps or ECS Fargate provider validation/deployment

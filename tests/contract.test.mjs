@@ -3,14 +3,18 @@ import { test } from 'node:test';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { init, handle } from '../build/app.js';
+import { init, handle, serve } from '../build/app.js';
+import { storeHost, memoryStore } from '../adapters/store.mjs';
 import { cases } from './cases.mjs';
 import { freePort, startServer, verifyHttp } from './http-harness.mjs';
 import { verifyNotes, httpCall } from './notes.mjs';
 
+const host = storeHost();
+const call = (store, method, path, body = '') => host.serveWith(serve, store, method, path, body);
+
 test('generated Wasm JS contract (compiled-module entry)', async t => {
   const module = await WebAssembly.compile(await readFile(new URL('../build/app.wasm', import.meta.url)));
-  await init(module);
+  await init(module, host.hooks);
   for (const c of cases) {
     await t.test(c.name, () => {
       assert.deepEqual(JSON.parse(handle(c.method, c.path, c.body ?? '')), { status: c.status, body: c.json, ...(c.allow ? { allow: c.allow } : {}) });
@@ -32,25 +36,23 @@ test('native HTTP contract', async t => {
   await verifyHttp(t, server.base);
 });
 
-test('generated Wasm notes: the host performs the reads and writes step asks for', async t => {
-  const { step } = await import('../build/app.js');
-  const { runStep, memoryStore } = await import('../adapters/step.mjs');
+test('generated Wasm notes: Almide reads and writes the store through async hooks', async t => {
   const store = memoryStore();
   await verifyNotes(t, async (method, path, body) => {
-    const r = await runStep(step, method, path, body, store);
+    const r = await call(store, method, path, body);
     return { status: r.status, allow: r.allow ?? null, json: r.body };
   });
   await t.test('stored document is the JSON list of notes', () => {
     assert.deepEqual(JSON.parse(store.data.get('notes')), [{ n: 1, text: 'hello' }, { n: 2, text: '世界 🌏' }]);
   });
   await t.test('no store answers 503, and a corrupt document 500', async () => {
-    assert.deepEqual(await runStep(step, 'GET', '/notes', '', null), { status: 503, body: { error: 'storage_unavailable' } });
-    const corrupt = await runStep(step, 'GET', '/notes', '', memoryStore({ notes: 'not json' }));
+    assert.deepEqual(await call(null, 'GET', '/notes'), { status: 503, body: { error: 'storage_unavailable' } });
+    const corrupt = await call(memoryStore({ notes: 'not json' }), 'GET', '/notes');
     assert.deepEqual(corrupt, { status: 500, body: { error: 'store_corrupt' } });
   });
   await t.test('only the newest 50 notes are kept', async () => {
     const many = memoryStore();
-    for (let i = 1; i <= 55; i++) await runStep(step, 'POST', '/notes', JSON.stringify({ text: `n${i}` }), many);
+    for (let i = 1; i <= 55; i++) await call(many, 'POST', '/notes', JSON.stringify({ text: `n${i}` }));
     const kept = JSON.parse(many.data.get('notes'));
     assert.equal(kept.length, 50);
     assert.deepEqual([kept[0], kept.at(-1)], [{ n: 6, text: 'n6' }, { n: 55, text: 'n55' }]);

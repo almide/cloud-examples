@@ -16,7 +16,7 @@ const metadata = JSON.stringify({ provider, source: 'almide-cloud-examples' }) +
 
 // Check all required inputs before touching a previous generated package.
 for (const path of [
-  'adapters/node-wasm.mjs', 'adapters/step.mjs', 'adapters/gcs-store.mjs', 'build/app.js', 'build/app.wasm',
+  'adapters/node-wasm.mjs', 'adapters/store.mjs', 'adapters/gcs-store.mjs', 'build/app.js', 'build/app.wasm',
   `providers/${provider}/package.json`, `providers/${provider}/package-lock.json`,
 ]) await stat(join(root, path));
 
@@ -37,7 +37,7 @@ try {
 await mkdir(output, { recursive: true });
 await writeFile(join(output, marker), metadata);
 
-for (const path of ['adapters/node-wasm.mjs', 'adapters/step.mjs', 'adapters/gcs-store.mjs', 'build/app.js', 'build/app.wasm', 'licenses', 'LICENSE']) {
+for (const path of ['adapters/node-wasm.mjs', 'adapters/store.mjs', 'adapters/gcs-store.mjs', 'build/app.js', 'build/app.wasm', 'licenses', 'LICENSE']) {
   const dest = join(output, path);
   await mkdir(resolve(dest, '..'), { recursive: true });
   await cp(join(root, path), dest, { recursive: true });

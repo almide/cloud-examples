@@ -34,11 +34,12 @@ for the exact evidence.
 
 ## /notes and KV
 
-`/notes` is stored in the KV binding `NOTES`. The shared Almide `step` says which
-key to read and what to write; `worker.js` performs it with `env.NOTES` (see the
-root README, "Storage: Almide decides, the host performs"). The generated JS
-host's environment is not a transparent bridge to Workers bindings, so the
-adapter, not Almide, touches KV.
+`/notes` is stored in the KV binding `NOTES`. Almide reads and writes it itself:
+`src/wasm.almd` calls the hooks `store_get` / `store_put`, and `worker.js` binds
+them to `env.NOTES` ([adapters/store.mjs](../../adapters/store.mjs)). KV only
+returns Promises, so the build marks the hooks `--async-import`, and the generated
+JS suspends the module through JSPI until each KV call settles (root README,
+"Storage: Almide drives every route").
 
 `wrangler.jsonc` names the binding without an `id`, so `wrangler deploy`
 provisions a namespace called `almide-cloud-example-notes`, and `wrangler dev
