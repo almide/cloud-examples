@@ -20,10 +20,17 @@ compiler-generated JS evaluates `new URL(..., import.meta.url)` at module scope.
 this fallback is not used to load Wasm. The wrapper passes the static
 `WebAssembly.Module` directly to `init`.
 
-No credentials, account IDs, API tokens or deployments are included. A local
-workerd pass and a bundle dry-run do not prove a successful Cloudflare edge
-upload, production quotas or behavior under real load. See the root support
-matrix for the exact evidence.
+No credentials, account IDs, API tokens or deployments are included.
+
+On 2026-10-04 this configuration was deployed unchanged with
+`npx wrangler deploy --config providers/cloudflare-workers/wrangler.jsonc`
+to a `*.workers.dev` URL, passed the shared 18-case HTTP contract from the edge,
+and was removed with `wrangler delete`. The deployed Worker has **no
+authentication**: a workers.dev URL is public. Delete it when finished. Right
+after a first deploy, the workers.dev route can briefly answer
+`404 error code: 1042` until it propagates (about 2 seconds here). Production
+quotas and behavior under real load were not tested. See the root support matrix
+for the exact evidence.
 
 Bindings, Secrets, outbound asynchronous `fetch`, D1, R2 and KV are intentionally
 outside this first example. They would belong in host adapters. The generated JS

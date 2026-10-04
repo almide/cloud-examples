@@ -15,7 +15,8 @@ Date: 2026-10-04 (UTC)
 
 The local compiler used an unoptimized test profile to reduce bootstrap time;
 the supplied installer and Dockerfile build the same source with `--release`.
-Those complete bootstrap/Docker workflows have not themselves been executed yet.
+Those complete bootstrap/Docker workflows were executed later; see the second
+run and GitHub Actions sections below.
 The native application was built with normal `almide build`.
 
 ## Passed
@@ -115,6 +116,31 @@ Observations:
   advisories (`uuid` via `cloudevents` via `@google-cloud/functions-framework`).
   The only offered fix is a breaking downgrade, so it was not applied
 
+## GitHub Actions
+
+The supplied workflow passed on `ubuntu-24.04` for commits `395df39` and
+`899f90b` (push and pull_request events): `install-almide.sh` with `--release`
+followed by every command in [Reproduction](#reproduction).
+
+## Cloudflare Workers edge deployment
+
+Date: 2026-10-04. Wrangler 4.147.0, unchanged `wrangler.jsonc`.
+
+1. `npx wrangler deploy --config providers/cloudflare-workers/wrangler.jsonc`
+   uploaded 28.50 KiB (gzip 11.39 KiB); reported Worker startup time 19 ms
+2. The same 18 shared cases (`verifyHttp`) passed against the workers.dev URL,
+   served from the KIX colo, on two separate deployments
+3. A redeploy observed with `wrangler tail`: 10 immediate requests, all `ok`,
+   no exceptions
+4. After deleting and redeploying, workers.dev answered `404 error code: 1042`
+   for about 2 seconds before the route propagated
+5. `wrangler delete` removed the Worker; the URL then returned 404
+
+The first request after the very first deployment returned HTTP 500. Its body was
+not captured, and it did not recur on a redeploy (with tail) or on a fresh
+deploy, so it is recorded as unexplained rather than attributed to Almide or to
+propagation.
+
 ## Not established
 
 - x86_64 Docker image build/run or Compose startup
@@ -122,10 +148,9 @@ Observations:
 - Cloud Run, Azure Container Apps or ECS Fargate provider validation/deployment
 - Lambda managed runtime or Azure Functions host execution/authentication
 - Google managed function source build, IAM enforcement or internal ingress
-- Cloudflare edge upload/deployment, account permissions or production limits
+- Cloudflare production limits, load behavior, or the one unexplained first-request 500
 - Any cloud storage, Secrets, authentication enforcement or async outbound HTTP portability
 - Windows behavior, Linux arm64 native (outside Docker) and macOS x86_64
-- GitHub Actions success on the remote repository
 
 The support matrix intentionally separates these from local evidence.
 

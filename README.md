@@ -23,15 +23,16 @@ be the same compiler.
 | Linux x86_64 native HTTP | Passed locally | 18 cases passed over HTTP | Not deployed |
 | macOS arm64 native HTTP | Passed locally with the `--release` installer | 18 cases passed over HTTP | Not applicable |
 | Wasm + generated JS, Node 24.19.0 | Passed locally | Same 18 cases + 1,000 repeated string calls | Not applicable |
-| Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed | Same 18 cases passed over HTTP | Not deployed |
+| Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed; real `wrangler deploy` uploaded | Same 18 cases passed over HTTP locally and on the workers.dev edge | Deployed temporarily to workers.dev, verified, deleted |
 | ConoHa Docker / Compose | Image built and Compose started on Docker 29.6.1, linux/arm64 only | Same 18 cases passed against the container | Not deployed |
 | Cloud Run / Azure Container Apps / ECS Fargate | Provider templates and local safety/shape checks passed; image not built | Shared native contract passed; provider runtime not run | Not deployed |
 | AWS Lambda, Node 24 | Source package generated; adapter/config tests passed | 18 common cases, base64/event/HEAD/warm-call checks; staged package executed locally | Not deployed |
 | Google Cloud Run functions, Node 24 | Source package and actual local Functions Framework tested | 18 direct adapter cases; HTTP tests explicitly cover framework JSON-prevalidation differences | Not deployed |
 | Azure Functions v4, Node 24 | Source package, adapter/config tests and actual SDK request objects tested | 18 common cases; Functions host/key enforcement not run | Not deployed |
 
-GitHub Actions is supplied but has not run for this new repository yet. See
-[verification notes](docs/verification.md) for exact commands and limits.
+GitHub Actions (`ubuntu-24.04`, full bootstrap and every reproduction step) has
+passed on this branch. See [verification notes](docs/verification.md) for exact
+commands and limits.
 
 ## Quick start
 
@@ -82,7 +83,8 @@ npm run dev:workers
 Container templates use existing infrastructure and private/internal ingress;
 function examples retain IAM or function-key authentication. They do not create
 accounts or silently grant caller access. Read [deployment safety and cleanup](docs/deployment-safety.md)
-before applying any example. No cloud command has been executed.
+before applying any example. Only the Cloudflare Workers example has been deployed,
+temporarily, for verification; the other providers have not.
 
 ### Prepare and test function packages locally
 
