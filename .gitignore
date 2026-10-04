@@ -19,3 +19,4 @@ local.settings.json
 .terraform.tfstate.lock.info
 .terraform.lock.hcl
 crash.log
+.DS_Store

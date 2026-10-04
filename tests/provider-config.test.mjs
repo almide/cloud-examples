@@ -147,6 +147,39 @@ test('ConoHa Terraform admits only operator SSH and keeps state and credentials 
   for (const entry of ['.terraform/', '*.tfstate', '*.tfvars', '!*.tfvars.example']) assert.ok(gitIgnore.includes(entry), entry);
 });
 
+test('Google Terraform keeps internal ingress, the invoker check and private buckets', async () => {
+  const read = path => readFile(new URL(`../providers/${path}`, import.meta.url), 'utf8');
+  const run = await read('google-cloud-run/terraform/main.tf');
+  const fn = await read('google-cloud-functions/terraform/main.tf');
+  assert.match(run, /ingress\s*=\s*"INGRESS_TRAFFIC_INTERNAL_ONLY"/);
+  assert.match(run, /invoker_iam_disabled\s*=\s*false/);
+  assert.match(run, /max_instance_request_concurrency\s*=\s*1/);
+  assert.match(fn, /ingress_settings\s*=\s*"ALLOW_INTERNAL_ONLY"/);
+  for (const main of [run, fn]) {
+    assert.doesNotMatch(main, /allUsers|allAuthenticatedUsers|roles\/(owner|editor)/);
+    for (const bucket of main.matchAll(/resource "google_storage_bucket" "[a-z_]+" \{[\s\S]*?\n\}/g)) {
+      assert.match(bucket[0], /public_access_prevention\s*=\s*"enforced"/);
+      assert.match(bucket[0], /uniform_bucket_level_access\s*=\s*true/);
+    }
+    // The runtime identity gets the bucket role only, never a project role.
+    assert.match(main, /resource "google_storage_bucket_iam_member" "runtime_notes"[\s\S]*?role\s*=\s*"roles\/storage\.objectUser"/);
+    assert.doesNotMatch(main, /google_project_iam_member"[^{]*\{[^}]*runtime/);
+  }
+  for (const dir of ['google-cloud-run', 'google-cloud-functions']) {
+    assert.match(await read(`${dir}/terraform/variables.tf`), /"allUsers", "allAuthenticatedUsers"/);
+  }
+});
+
+test('Cloudflare Terraform uploads only the imported Wasm and binds NOTES', async () => {
+  const main = await readFile(new URL('../providers/cloudflare-workers/terraform/main.tf', import.meta.url), 'utf8');
+  const wrangler = await readFile(new URL('../providers/cloudflare-workers/wrangler.jsonc', import.meta.url), 'utf8');
+  assert.match(main, /compatibility_flags = \["nodejs_compat", "new_module_registry"\]/);
+  assert.ok(wrangler.includes('"compatibility_flags": ["nodejs_compat", "new_module_registry"]'));
+  assert.equal(main.match(/compatibility_date = "([^"]+)"/)[1], wrangler.match(/"compatibility_date": "([^"]+)"/)[1]);
+  assert.match(main, /regex\("from \\"\\\\\.\/\(\[0-9a-f\]\+-app\\\\\.wasm\)\\""/);
+  assert.match(main, /name\s*=\s*"NOTES"\s*\n\s*type\s*=\s*"kv_namespace"/);
+});
+
 test('local credential and tool outputs are excluded from source and Docker context', async () => {
   const gitIgnore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8');
   const dockerIgnore = await readFile(new URL('../.dockerignore', import.meta.url), 'utf8');

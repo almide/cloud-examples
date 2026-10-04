@@ -32,12 +32,12 @@ See [verification notes](docs/verification.md#compiler-pin-moved-to-the-v0660-re
 | Linux x86_64 native HTTP | Passed locally | 18 cases passed over HTTP | Not deployed |
 | macOS arm64 native HTTP | Passed locally with the `--release` installer | 18 cases passed over HTTP | Not applicable |
 | Wasm + generated JS, Node 24.19.0 | Passed locally | Same 18 cases + 1,000 repeated string calls | Not applicable |
-| Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed; real `wrangler deploy` uploaded | Same 18 cases passed over HTTP locally and on the workers.dev edge | Deployed temporarily to workers.dev, verified, deleted |
+| Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed; real `wrangler deploy` uploaded | Same 18 cases passed over HTTP locally and on the workers.dev edge | Deployed temporarily with Wrangler and with [Terraform](providers/cloudflare-workers/terraform/), verified, deleted |
 | ConoHa Docker / Compose | Image built and Compose started on macOS arm64 (Docker 29.6.1) and on a ConoHa VPS, x86_64 (Docker 29.2.1, Compose v5.0.2) | Same 18 cases passed against the container on both | VPS created with [Terraform](providers/conoha/terraform/), verified, destroyed |
-| Google Cloud Run container | linux/amd64 image built (QEMU on Apple silicon), pushed by digest; `replace --dry-run` and deploy passed | Same 18 cases passed from a VM inside the VPC with an ID token | Deployed temporarily with internal ingress + IAM, verified, deleted |
+| Google Cloud Run container | linux/amd64 image built (QEMU on Apple silicon), pushed by digest; `replace --dry-run` and deploy passed | Same 18 cases passed from a VM inside the VPC with an ID token | Deployed temporarily with internal ingress + IAM, by gcloud and by [Terraform](providers/google-cloud-run/terraform/), verified, deleted |
 | Azure Container Apps / ECS Fargate | Provider templates and local safety/shape checks passed; image not built for them | Shared native contract passed; provider runtime not run | Not deployed |
 | AWS Lambda, Node 24 | Source package generated; adapter/config tests passed | 18 common cases, base64/event/HEAD/warm-call checks; staged package executed locally | Not deployed |
-| Google Cloud Run functions, Node 24 | Source package, local Functions Framework, and managed source build via `deploy.sh --execute` | 18 direct adapter cases; in the cloud, 18 octet-stream cases passed and JSON showed the same 3 framework rejections as locally | Deployed temporarily with internal ingress + IAM, verified, deleted |
+| Google Cloud Run functions, Node 24 | Source package, local Functions Framework, and managed source build via `deploy.sh --execute` | 18 direct adapter cases; in the cloud, 18 octet-stream cases passed and JSON showed the same 3 framework rejections as locally | Deployed temporarily with internal ingress + IAM, by `deploy.sh` and by [Terraform](providers/google-cloud-functions/terraform/), verified, deleted |
 | Azure Functions v4, Node 24 | Source package, adapter/config tests and actual SDK request objects tested | 18 common cases; Functions host/key enforcement not run | Not deployed |
 
 The `/notes` storage scenario ([tests/notes.mjs](tests/notes.mjs), 10 requests in
@@ -106,7 +106,8 @@ accounts or silently grant caller access. Read [deployment safety and cleanup](d
 before applying any example. The Cloudflare Workers, Google Cloud Run container,
 Cloud Run functions and ConoHa VPS examples have been deployed temporarily for
 verification and then deleted; the AWS and Azure examples have not been deployed.
-The ConoHa VPS itself is created by the optional [Terraform](providers/conoha/terraform/).
+Each of these also has optional Terraform (ConoHa, Cloud Run, Cloud Run functions,
+Workers), applied, verified and destroyed once; see each provider guide.
 
 ### Prepare and test function packages locally
 

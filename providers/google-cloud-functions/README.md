@@ -81,6 +81,33 @@ When finished, review `gcloud run services delete SERVICE --project PROJECT
 --region REGION` for the exact service you created. Build artifacts in Artifact
 Registry and logs may need separate cleanup; do not delete shared repositories.
 
+## Optional: Terraform
+
+[terraform/](terraform/) deploys the staged package with the Cloud Functions v2
+API (`google_cloudfunctions2_function`), which serves it from a Cloud Run
+service: Node 24 runtime, entry point `almideApi`, a build service account with
+`roles/cloudbuild.builds.builder`, a runtime account with no project roles,
+internal-only ingress, concurrency 1, at most 3 instances, a private `/notes`
+bucket and `run.invoker` only for the members you list. The source zip is the
+staged package without `node_modules`; the build installs from the lockfile.
+
+```sh
+npm run build && npm run package:faas
+cd providers/google-cloud-functions/terraform
+cp terraform.tfvars.example terraform.tfvars   # project_id, invoker_members
+terraform init && terraform apply
+terraform destroy
+```
+
+On 2026-10-04 this was applied in a disposable project (16 resources, about
+3 minutes including a 60-second wait for the build account's grant). Requests
+right after the apply got 403 (`run.routes.invoke`) until the invoker grant
+propagated, a few minutes later. Then, from an in-VPC VM: 18/18 as
+octet-stream, the same 3 framework rejections as JSON, and the `/notes` scenario
+11/11. A second `plan` showed no changes and `destroy` removed all 16, but
+Cloud Functions' own `gcf-v2-sources-*` bucket and `gcf-artifacts` repository
+remained; delete them, or the project, separately.
+
 ## Configuration, secrets and logs
 
 Cloud Run environment values are host-side `process.env` configuration; they
