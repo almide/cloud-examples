@@ -6,8 +6,8 @@ if [[ ! -x "$almide" ]]; then
   echo 'Compiler missing. Run ./scripts/install-almide.sh first.' >&2; exit 1
 fi
 if [[ -z "${ALMIDE_BIN:-}" ]]; then
-  cmp -s .almide-revision .tools/bin/almide.revision || {
-    echo 'Compiler revision mismatch. Re-run ./scripts/install-almide.sh.' >&2; exit 1
+  cmp -s .almide-release .tools/bin/almide.release || {
+    echo 'Compiler release mismatch. Re-run ./scripts/install-almide.sh.' >&2; exit 1
   }
 fi
 mkdir -p build

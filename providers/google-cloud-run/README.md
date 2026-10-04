@@ -100,7 +100,8 @@ selects 8080 and HTTP/1. Cloud Run terminates HTTPS before forwarding to it. Do
 not add TLS inside this container or override `PORT` in the service environment.
 See the [container contract](https://docs.cloud.google.com/run/docs/container-contract).
 
-The compiler build is much heavier than the deployed program. Docker base tags
+The image build downloads the pinned compiler and compiles only the app; under
+QEMU on Apple silicon it is still much slower than a native amd64 build. Docker base tags
 in the shared Dockerfile are not digest-locked; pinning the deployed image fixes
 the deployed bytes but does not make rebuilding hermetic. Review/scanning of that
 image and graceful shutdown/load behavior remain operator responsibilities.

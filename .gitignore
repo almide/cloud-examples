@@ -11,3 +11,11 @@ node_modules/
 local.settings.json
 .azure/
 *.private.json
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.tfstate.lock.info
+.terraform.lock.hcl
+crash.log

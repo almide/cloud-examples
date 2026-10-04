@@ -2,6 +2,10 @@
 
 Date: 2026-10-04 (UTC)
 
+The compiler pin is now the official `v0.66.0` release binary; see
+[Compiler pin moved to the v0.66.0 release](#compiler-pin-moved-to-the-v0660-release).
+The sections before it record runs made with a source build of the earlier pin.
+
 ## Toolchain and source
 
 - Almide source: `852b028a5706801fd008a753bcbdf8b3ea93156f`
@@ -184,11 +188,66 @@ Cloud Run functions:
    (invalid JSON, body limit, trailing text) failed, matching the local record
 4. 403 without a token from the VPC; 404 with a valid token from the internet
 
+## Compiler pin moved to the v0.66.0 release
+
+Building the compiler from source dominated every build: about 7.5 minutes on an
+Apple silicon Mac, and 5m46s of a 7m18s `docker compose build` on a 4-core VPS.
+The official `v0.66.0` release (2026-10-03) ships linux x86_64/aarch64 and macOS
+binaries with a checksum file, so the pin moved from source commit `852b028` to
+that release. Its tag commit `819bbc7` and `852b028` have diverged (30 and 155
+commits apart), so it is a different compiler and was re-verified:
+
+1. `install-almide.sh` downloads the platform archive and installs it only if its
+   sha256 matches `.almide-checksums.sha256` (copied from the release's
+   `almide-checksums.sha256`). 2.4 seconds on macOS arm64
+2. The installer tests stub only the download: a matching archive installs
+   `almide` and `almide-verify`; a wrong checksum installs nothing; a malformed
+   tag is refused before any download
+3. macOS arm64, Node 24.21.0: `npm test` 117/117, `test:workers` 19/19,
+   `test:google-framework` 39/39, `test:staged-functions` 38/38. App build 7 s
+4. The release binary needs glibc 2.39+, so it fails on Debian bookworm; the
+   Dockerfile moved to `rust:1.99.0-trixie` / `debian:trixie-slim`. Native
+   `almide build` still emits Rust and runs cargo (it fails without cargo), so
+   the build stage keeps Rust
+5. macOS arm64 `docker build`: 10 s with cached base images; Compose and the 18
+   cases passed, read-only root filesystem and UID 65532 retained
+6. ConoHa VPS x86_64 (below): 91 s including base-image pulls, 24 s with
+   `--no-cache`; 18 cases passed
+
+The earlier Cloudflare and Google deployments used the source-built compiler and
+were not repeated with the release binary. License texts are identical at both pins.
+
+## ConoHa VPS
+
+Date: 2026-10-04. Created with [providers/conoha/terraform](../providers/conoha/terraform/)
+(Terraform 1.14.9, the Aid-On fork of the conohavps provider at `ff59ace`, built
+locally and used through `dev_overrides`), region c3j1.
+
+1. `terraform plan`: 5 to add (server, boot volume, key pair, security group, one
+   SSH rule from the operator's /32). Existing servers, keys and groups in the
+   account were not in the plan and were unchanged afterwards
+2. `terraform apply`: 1m10s. `g2l-t-c4m4`, `vmi-docker-29.2-ubuntu-24.04-amd64`:
+   Ubuntu 24.04.4, x86_64, 4 vCPU, 3.8 GiB, Docker 29.2.1, Compose v5.0.2. The
+   account's second server was accepted
+3. First boot ran unattended upgrades through cloud-init for about 15 minutes;
+   the build waited for `cloud-init status --wait`
+4. ConoHa README commands from a clone of the repository:
+   - with the source-build installer (main at `42cecaa`): build 7m18s (compiler
+     5m46s); `/health`, `/greet` and the 18 cases passed
+   - with the release installer (`4f72f7b`): build 91 s including base-image
+     pulls, 24 s with `--no-cache`; the 18 cases passed
+5. The 18 cases ran from the Mac through `ssh -L` to the VPS loopback. The app
+   listened only on `127.0.0.1:8080`; port 8080 on the public address was not
+   reachable. The container ran as 65532 with a read-only root filesystem and
+   `CapDrop=[ALL]`; `docker compose down` took 0.5 s
+6. `terraform destroy` removed all 5 resources; the VPS existed about 23 minutes
+
 ## Not established
 
-- x86_64 Compose startup or native x86_64 Docker build (the amd64 image was
-  built and run only under QEMU, and run on Cloud Run)
-- A ConoHa VPS installation, ingress, TLS, restart behavior or production load
+- Native x86_64 Docker build outside the ConoHa VPS
+- ConoHa TLS/reverse proxy, restart behavior, production load, or plans smaller
+  than `g2l-t-c4m4`
+- Cloudflare and Google deployments with the release compiler
 - Azure Container Apps or ECS Fargate provider validation/deployment
 - Lambda managed runtime or Azure Functions host execution/authentication
 - Google Cloud costs, load, cold-start latency or long-running behavior
@@ -214,12 +273,12 @@ npm run test:google-framework
 npm run test:staged-functions
 ```
 
-For a future Docker gate, run the Compose commands in the ConoHa README on a
-machine with Docker and verify `/health` and `/greet` before marking the route
-container-tested. Deployments require a separate, explicit decision.
+For a Docker gate, run the Compose commands in the ConoHa README on a machine with
+Docker and verify `/health` and `/greet`. Deployments require a separate,
+explicit decision.
 
 ## Upstream references
 
-- [HTTP server semantics at the pin](https://github.com/almide/almide/blob/852b028a5706801fd008a753bcbdf8b3ea93156f/docs/stdlib/http.md)
-- [Generated JS host at the pin](https://github.com/almide/almide/blob/852b028a5706801fd008a753bcbdf8b3ea93156f/src/cli/js_host.rs)
-- [JS host contract at the pin](https://github.com/almide/almide/blob/852b028a5706801fd008a753bcbdf8b3ea93156f/docs/wasm/WASM-OUTPUT.md)
+- [HTTP server semantics at the pin](https://github.com/almide/almide/blob/v0.66.0/docs/stdlib/http.md)
+- [Generated JS host at the pin](https://github.com/almide/almide/blob/v0.66.0/src/cli/js_host.rs)
+- [JS host contract at the pin](https://github.com/almide/almide/blob/v0.66.0/docs/wasm/WASM-OUTPUT.md)

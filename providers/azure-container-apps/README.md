@@ -95,8 +95,8 @@ Use the returned SHA-256 digest, removing only the `sha256:` prefix, for the
 tag. Confirm that this digest identifies the tested amd64 image. ARM's length
 constraints do not prove the digest exists or validate its architecture.
 
-The shared image runs as UID/GID 65532 and uses `PORT=8080`. Its compiler build is
-substantial; build on a suitably sized machine. Explicit `--platform` matters
+The shared image runs as UID/GID 65532 and uses `PORT=8080`. Its build downloads
+the pinned compiler and compiles only the app. Explicit `--platform` matters
 on ARM laptops. Base images currently use version tags, so pinning the deployed
 image digest does not make source rebuilds fully hermetic.
 
