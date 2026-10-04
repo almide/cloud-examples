@@ -214,8 +214,26 @@ commits apart), so it is a different compiler and was re-verified:
 6. ConoHa VPS x86_64 (below): 91 s including base-image pulls, 24 s with
    `--no-cache`; 18 cases passed
 
-The earlier Cloudflare and Google deployments used the source-built compiler and
-were not repeated with the release binary. License texts are identical at both pins.
+License texts are identical at both pins.
+
+### Cloudflare and Google rerun with the release binary
+
+Same day, from main at `916f22c`, using the same procedure as the earlier
+[Cloudflare](#cloudflare-workers-edge-deployment) and
+[Google](#google-cloud-deployments) sections (a new disposable Google project,
+deleted afterwards):
+
+1. Cloudflare Workers: upload 28.90 KiB (gzip 11.47 KiB), startup 18 ms. Two
+   requests got the 1042 propagation 404, then 18/18 passed from the KIX colo; no
+   500 this time. `wrangler delete` removed it
+2. linux/amd64 image under QEMU on Apple silicon: 91 s
+3. Cloud Run container from the digest-pinned image: 18/18 from the in-VPC VM
+   with an ID token; 403 without a token; 404 from the internet with a token
+4. Cloud Run functions via `deploy.sh --execute`: 18/18 as
+   `application/octet-stream`; as JSON the same 3 framework rejections; 403 / 404
+   negatives as before
+5. Waiting about 90 seconds after granting `roles/run.invoker` avoided the
+   propagation failures seen in the first run
 
 ## ConoHa VPS
 
@@ -247,7 +265,6 @@ locally and used through `dev_overrides`), region c3j1.
 - Native x86_64 Docker build outside the ConoHa VPS
 - ConoHa TLS/reverse proxy, restart behavior, production load, or plans smaller
   than `g2l-t-c4m4`
-- Cloudflare and Google deployments with the release compiler
 - Azure Container Apps or ECS Fargate provider validation/deployment
 - Lambda managed runtime or Azure Functions host execution/authentication
 - Google Cloud costs, load, cold-start latency or long-running behavior

@@ -19,9 +19,10 @@ and the archive checksums in [.almide-checksums.sha256](.almide-checksums.sha256
 Results checked on **2026-10-04**. Most rows below were first established with a
 source build of the earlier pin, commit
 [`852b028`](https://github.com/almide/almide/commit/852b028a5706801fd008a753bcbdf8b3ea93156f)
-(`0.66.0 (dev)`); after the switch, every local suite, Docker/Compose on macOS arm64
-and on the ConoHa VPS, and GitHub Actions were rerun with the release binary.
-Cloudflare and Google deployments have not been repeated with it.
+(`0.66.0 (dev)`); after the switch, every route in the table that was run before
+(local suites, Docker/Compose on macOS arm64 and on the ConoHa VPS, Cloudflare
+Workers, Google Cloud Run container and functions, GitHub Actions) was rerun with
+the release binary and gave the same results.
 See [verification notes](docs/verification.md#compiler-pin-moved-to-the-v0660-release).
 
 | Route | Build / bundle | Shared API contract | Live cloud |
