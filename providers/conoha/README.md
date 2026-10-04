@@ -72,7 +72,9 @@ a named volume (`notes`) that outlives the container; the image creates `/data`
 owned by the runtime user, so the read-only root filesystem stays read-only.
 `docker compose down` keeps the volume; `docker compose down -v` deletes the notes.
 Locally (macOS arm64) the notes scenario passed and the notes survived
-`down` / `up`; the ConoHa VPS run above predates `/notes`.
+`down` / `up`. On the ConoHa VPS (2026-10-04, main at `e73081a`) the same held: the
+scenario passed, `notes.json` in the volume (owned by 65532) held the two notes,
+and they survived `down` / `up`.
 
 Compose binds the app only to the host loopback address. For public access, place
 a TLS reverse proxy in front and configure the intended ConoHa security group
