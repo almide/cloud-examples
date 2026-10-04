@@ -302,6 +302,37 @@ Live:
 Not shown: behavior under concurrent writers. The single-key read-modify-write
 has no conditional write, so concurrent instances can lose a note.
 
+## Terraform for Cloudflare and Google
+
+Date: 2026-10-04, Terraform 1.14.9, providers cloudflare 5.26.0, google 8.5.0,
+archive 2.8.1, time 0.14.2. Each configuration was applied, checked with the
+same tests as the CLI deployments, planned again (no changes) and destroyed.
+The application was main at `c904bf7`.
+
+1. Cloudflare (`providers/cloudflare-workers/terraform`), with the Wrangler
+   login's token as `CLOUDFLARE_API_TOKEN`: 4 resources (KV namespace, Worker,
+   version with `worker.js` and the imported Wasm, deployment). 18 cases and the
+   `/notes` scenario passed from the edge (29/29); KV held the two saved notes.
+   `destroy` removed all 4 including the namespace. The API reported the Worker
+   gone at once; the URL answered 200 for a few seconds, then 404
+2. Google, a new disposable project (deleted afterwards), credentials through
+   `GOOGLE_OAUTH_ACCESS_TOKEN`; the probe VM and caller account were made with
+   gcloud, outside Terraform:
+   - Cloud Run (`providers/google-cloud-run/terraform`): 8 resources, then the
+     image was pushed to the created repository and the second apply made the
+     service and the invoker grant (2). Ingress internal, concurrency 1, the
+     runtime account, invoker = the caller only. From the in-VPC VM: 18/18 and
+     the scenario 11/11; the bucket held the two notes; internet with a token
+     404; no token 403
+   - Cloud Run functions (`providers/google-cloud-functions/terraform`): 16
+     resources in 183 s (including the 60-second wait for the build account's
+     grant). The first requests got 403 `run.routes.invoke` until the invoker
+     grant propagated a few minutes later; then 18/18 octet-stream, the 3 known
+     framework rejections as JSON, the scenario 11/11, and the two notes in GCS
+   - `destroy` removed 10 and 16 resources. Cloud Functions' own
+     `gcf-v2-sources-*` bucket and `gcf-artifacts` repository were not managed
+     by Terraform and remained until the project was deleted
+
 ## Not established
 
 - Native x86_64 Docker build outside the ConoHa VPS

@@ -150,6 +150,34 @@ supports YAML specifications and optional validation without application. Both
 the dry run and the real replace succeeded on 2026-10-04. If deployment fails, inspect
 the returned error and revision logs; do not relax ingress or IAM as a shortcut.
 
+## Optional: Terraform
+
+[terraform/](terraform/) creates the same service in an existing project: the APIs,
+an Artifact Registry repository, a runtime service account with no project
+roles, a private `/notes` bucket (public access prevention, uniform access,
+`roles/storage.objectUser` for the runtime account on that bucket only), and the
+service with internal ingress, the invoker IAM check, concurrency 1 and the same
+probes. Invokers are only the members you list; `allUsers` is refused. The
+repository must exist before the image can be pushed, so it takes two applies:
+
+```sh
+gcloud auth application-default login   # or GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)
+cd providers/google-cloud-run/terraform
+cp terraform.tfvars.example terraform.tfvars   # project_id, invoker_members
+terraform init && terraform apply              # repository, identity, bucket
+IMAGE=$(terraform output -raw image_path)
+docker buildx build --platform linux/amd64 --load -t "$IMAGE:reviewed-build" ../../..
+docker push "$IMAGE:reviewed-build"
+docker buildx imagetools inspect "$IMAGE:reviewed-build"   # set image = "$IMAGE@sha256:..."
+terraform apply                                # the service
+terraform destroy                              # also deletes the bucket and its notes
+```
+
+On 2026-10-04 this was applied in a disposable project: 8 resources, then 2;
+from an in-VPC VM with an ID token the 18 cases and the `/notes` scenario passed,
+the bucket held the two saved notes, an internet request with a token got 404,
+a second `plan` showed no changes, and `destroy` removed all 10.
+
 ## Verify the deployment from an authorized network
 
 First review the deployed configuration and service IAM policy. Also have your

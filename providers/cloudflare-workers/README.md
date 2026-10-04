@@ -57,6 +57,29 @@ KV is eventually consistent across locations and has no conditional write, so
 concurrent POSTs from different isolates can lose one. Secrets, D1, R2 and
 outbound `fetch` remain outside the example.
 
+## Optional: Terraform
+
+[terraform/](terraform/) deploys the Wrangler bundle with the Cloudflare provider:
+a KV namespace `<name>-notes`, the Worker (on workers.dev unless
+`workers_dev = false`), a version with `worker.js` and only the Wasm module it
+imports, the `NOTES` binding and the same compatibility date and flags, and a
+deployment of that version. Unlike `wrangler delete`, `terraform destroy` also
+removes the KV namespace.
+
+```sh
+npm run build && npm run check:workers          # writes build/worker-bundle
+export CLOUDFLARE_API_TOKEN=...                 # Workers Scripts and Workers KV Storage: Edit
+cd providers/cloudflare-workers/terraform
+cp terraform.tfvars.example terraform.tfvars   # account_id
+terraform init && terraform apply
+terraform destroy
+```
+
+On 2026-10-04 this created 4 resources; the 18 cases and the `/notes` scenario
+passed from the edge (29/29) and KV held the two saved notes. A second `plan`
+showed no changes. After `destroy` the API reported the Worker gone at once,
+while the URL kept answering 200 for a few seconds before 404.
+
 ## Official references
 
 - [Workers WebAssembly](https://developers.cloudflare.com/workers/runtime-apis/webassembly/javascript/)

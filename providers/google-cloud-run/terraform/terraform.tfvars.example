@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (ignored by Git) and fill in.
+project_id = "your-dedicated-project"
+# region   = "asia-northeast1"
+# Second apply, after pushing: the digest printed by `docker buildx imagetools inspect`.
+# image    = "asia-northeast1-docker.pkg.dev/your-dedicated-project/almide/almide-api@sha256:..."
+# invoker_members = ["serviceAccount:caller@your-dedicated-project.iam.gserviceaccount.com"]
