@@ -47,7 +47,12 @@ With `GCS_BUCKET`, `deploy.sh` adds `--set-env-vars GCS_BUCKET=...` and
 `notes` with `fetch` and the metadata-server token (no SDK dependency). Grant the
 runtime account `roles/storage.objectUser` on that bucket only. Almide makes the
 read and the write itself through the `store_get` / `store_put` hooks, which the
-Node host binds to that store; the runtime must be Node 24 or newer (JSPI).
+Node host binds to that store. The hooks need JSPI, which is on by default from
+Node 24.20.0. On 2026-10-04 Google's `nodejs24` image was 24.19.0 (no JSPI), and
+every request failed at `init()` with the generated message naming the missing
+`WebAssembly.Suspending`. Until that image moves to 24.20 or later, deploy with
+`nodejs26` (beta): `GCP_BASE_IMAGE=nodejs26` for `deploy.sh`, or
+`-var runtime=nodejs26` for Terraform.
 
 From the repository root, `bash providers/google-cloud-functions/deploy.sh`
 only prints a reviewed, shell-escaped command. Adding `--execute` runs it and

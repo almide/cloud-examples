@@ -78,7 +78,7 @@ resource "google_cloudfunctions2_function" "api" {
   location = var.region
 
   build_config {
-    runtime         = "nodejs24"
+    runtime         = var.runtime
     entry_point     = "almideApi"
     service_account = google_service_account.build.id
     source {

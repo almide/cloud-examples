@@ -15,7 +15,7 @@ source_dir="$root/build/packages/google-cloud-functions"
   echo 'Build and package google-cloud-functions first; see README.md' >&2; exit 1;
 }
 command=(gcloud run deploy "$GCP_SERVICE" --project "$GCP_PROJECT" --region "$GCP_REGION"
-  --source "$source_dir" --function almideApi --base-image nodejs24
+  --source "$source_dir" --function almideApi --base-image "${GCP_BASE_IMAGE:-nodejs24}"
   --service-account "$GCP_SERVICE_ACCOUNT" --build-service-account "$GCP_BUILD_SERVICE_ACCOUNT"
   --no-allow-unauthenticated --invoker-iam-check --ingress internal --concurrency 1
   --min-instances 0 --max-instances 3 --memory 256Mi --cpu 1 --timeout 30s)
