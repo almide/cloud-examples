@@ -1,0 +1,21 @@
+{
+  "name": "almide-cloud-examples",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "test": "node --test tests/contract.test.mjs tests/installer.test.mjs tests/faas.test.mjs tests/provider-config.test.mjs tests/package-faas.test.mjs",
+    "test:workers": "node --test tests/workers.test.mjs",
+    "check:workers": "WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --config providers/cloudflare-workers/wrangler.jsonc --outdir \"$PWD/build/worker-bundle\"",
+    "dev:workers": "WRANGLER_SEND_METRICS=false wrangler dev --local --config providers/cloudflare-workers/wrangler.jsonc",
+    "package:faas": "node scripts/package-faas.mjs aws-lambda && node scripts/package-faas.mjs google-cloud-functions && node scripts/package-faas.mjs azure-functions",
+    "test:google-framework": "node --test tests/google-framework.test.mjs",
+    "test:staged-functions": "node --test tests/staged-functions.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.147.0"
+  }
+}

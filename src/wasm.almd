@@ -1,0 +1,6 @@
+import api
+
+pub fn handle(method: String, target: String, body: String) -> String =
+  api.handle(method, target, body)
+
+fn main() -> Unit = {}

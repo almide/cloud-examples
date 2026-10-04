@@ -1,0 +1,17 @@
+.git
+.tools
+build
+node_modules
+.wrangler
+.env*
+.dev.vars*
+.aws-sam
+**/local.settings.json
+.azure
+**/node_modules
+**/.wrangler
+**/.aws-sam
+**/.azure
+**/.env*
+**/.dev.vars*
+**/*.private.json

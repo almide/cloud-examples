@@ -1,0 +1,46 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "Almide Wasm HTTP sample; authenticated Function URL; no application data permissions",
+  "Resources": {
+    "ApiFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "CodeUri": "../../build/packages/aws-lambda/",
+        "Handler": "providers/aws-lambda/handler.handler",
+        "Runtime": "nodejs24.x",
+        "Architectures": [
+          "x86_64"
+        ],
+        "MemorySize": 256,
+        "Timeout": 30,
+        "ReservedConcurrentExecutions": 2,
+        "FunctionUrlConfig": {
+          "AuthType": "AWS_IAM",
+          "InvokeMode": "BUFFERED"
+        },
+        "Policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "FunctionArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ApiFunction",
+          "Arn"
+        ]
+      }
+    },
+    "FunctionUrl": {
+      "Value": {
+        "Fn::GetAtt": [
+          "ApiFunctionUrl",
+          "FunctionUrl"
+        ]
+      }
+    }
+  }
+}

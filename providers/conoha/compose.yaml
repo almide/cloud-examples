@@ -1,0 +1,14 @@
+services:
+  api:
+    image: almide-cloud-example:local
+    build:
+      context: ../..
+    environment:
+      PORT: "8080"
+    # Keep the sample private on the VPS. Add a TLS reverse proxy deliberately.
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

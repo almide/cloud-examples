@@ -1,0 +1,10 @@
+{
+  "name": "almide-example-google-cloud-functions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "24.x" },
+  "main": "providers/google-cloud-functions/index.mjs",
+  "scripts": { "start": "functions-framework --target=almideApi --signature-type=http" },
+  "dependencies": { "@google-cloud/functions-framework": "5.0.5" }
+}

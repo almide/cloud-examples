@@ -1,0 +1,21 @@
+import api
+import env
+import http
+import json
+
+effect fn handle(req: HttpRequest) -> HttpResponse = {
+  let envelope = json.parse(api.handle(http.req_method(req), http.req_path(req), http.req_body(req)))!
+  let status = json.get_int(envelope, "status") ?? 500
+  let body = json.get_path(envelope, json.field(json.root(), "body")) ?? value.null()
+  let response = http.json(status, json.stringify(body))
+  match json.get_string(envelope, "allow") {
+    some(allow) => http.set_header(response, "Allow", allow),
+    none => response,
+  }
+}
+
+effect fn main() -> Unit = {
+  let port_text = env.get("PORT") ?? "8080"
+  let port = int.parse(port_text)!
+  http.serve(port, (req) => handle(req)!)!
+}
