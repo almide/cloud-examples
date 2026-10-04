@@ -1,8 +1,10 @@
 # ConoHa VPS: native container route
 
-Status: native executable tested on Linux locally. This Docker image and a ConoHa
-VPS deployment have **not** been run yet. This directory is a reproducible setup
-candidate, not a claim of hosted support. No ConoHa SDK is required.
+Status: native executable tested on Linux locally. The image and the Compose
+commands below were run locally on linux/arm64 (Docker 29.6.1) and passed the
+shared 18-case HTTP contract. An x86_64 image and a ConoHa VPS deployment have
+**not** been run yet. This directory is a reproducible setup candidate, not a
+claim of hosted support. No ConoHa SDK is required.
 
 ## Prerequisites
 

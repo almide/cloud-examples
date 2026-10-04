@@ -21,9 +21,10 @@ be the same compiler.
 | Route | Build / bundle | Shared API contract | Live cloud |
 | --- | --- | --- | --- |
 | Linux x86_64 native HTTP | Passed locally | 18 cases passed over HTTP | Not deployed |
+| macOS arm64 native HTTP | Passed locally with the `--release` installer | 18 cases passed over HTTP | Not applicable |
 | Wasm + generated JS, Node 24.19.0 | Passed locally | Same 18 cases + 1,000 repeated string calls | Not applicable |
 | Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed | Same 18 cases passed over HTTP | Not deployed |
-| ConoHa Docker / Compose | Configuration supplied; Docker unavailable in the test environment | Native route passed, container not run | Not deployed |
+| ConoHa Docker / Compose | Image built and Compose started on Docker 29.6.1, linux/arm64 only | Same 18 cases passed against the container | Not deployed |
 | Cloud Run / Azure Container Apps / ECS Fargate | Provider templates and local safety/shape checks passed; image not built | Shared native contract passed; provider runtime not run | Not deployed |
 | AWS Lambda, Node 24 | Source package generated; adapter/config tests passed | 18 common cases, base64/event/HEAD/warm-call checks; staged package executed locally | Not deployed |
 | Google Cloud Run functions, Node 24 | Source package and actual local Functions Framework tested | 18 direct adapter cases; HTTP tests explicitly cover framework JSON-prevalidation differences | Not deployed |
@@ -35,8 +36,10 @@ GitHub Actions is supplied but has not run for this new repository yet. See
 ## Quick start
 
 Requires Linux or macOS, Git, Rust **1.99.0**, a C build toolchain, Bash, and Node
-**22+**. Local evidence used Linux x86_64 and Node **24.19.0**. Rust installation
-is a prerequisite; the repository does not install it for you.
+**22+**. Local evidence used Linux x86_64 with Node **24.19.0**, and macOS arm64
+with Node **24.21.0** and **22.23.1**. Rust installation is a prerequisite; the
+repository does not install it for you. `rust-toolchain.toml` selects 1.99.0 only
+when `cargo` is the rustup proxy; a standalone `cargo` earlier on `PATH` ignores it.
 
 ```sh
 ./scripts/install-almide.sh  # builds the exact compiler commit; first build is substantial

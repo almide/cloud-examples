@@ -82,16 +82,49 @@ Wrangler's default inspector-port discovery attempted unsupported network-interf
 enumeration in this environment. The test selects an explicit free inspector
 port with the documented `--inspector-port` flag. No tool or runtime was patched.
 
+## Second run: macOS arm64 and Docker
+
+Date: 2026-10-04. Same Almide pin and repository revision.
+
+- Platform: macOS (Darwin 25.3.0) arm64; Docker 29.6.1 with linux/arm64 images
+- Rust `1.99.0` through rustup; Node `v24.21.0` (npm 11.19.0) and `v22.23.1`
+- Compiler built with the supplied `./scripts/install-almide.sh` (`--release`,
+  about 7.5 minutes), not `ALMIDE_BIN`
+
+Passed:
+
+1. Every command in [Reproduction](#reproduction), unmodified, on Node 24.21.0:
+   `npm test` 116/116, `test:workers` 19/19, `test:google-framework` 39/39,
+   `test:staged-functions` 38/38, `check:workers` dry-run bundle 28.50 KiB
+2. `npm test` on Node 22.23.1: 116/116
+3. `docker build .` with the supplied Dockerfile (runtime image 165 MB)
+4. The ConoHa README Compose commands: `/health` and `/greet` returned the
+   documented bodies. The same 18 shared cases (`verifyHttp` from
+   `tests/http-harness.mjs`) passed against the container on loopback
+5. The running container used UID/GID 65532, a read-only root filesystem and
+   `CapDrop=[ALL]`. `docker compose down` finished in under 1 second, so the
+   server exits on SIGTERM without waiting for the kill timeout
+
+Observations:
+
+- A standalone `cargo` (1.96.1) ahead of rustup on `PATH` ignored
+  `rust-toolchain.toml`; `~/.cargo/bin` had to come first
+- npm 11 install-script approval skipped `workerd`'s postinstall. The platform
+  binary still arrived through its optional dependency and Workers tests passed
+- `npm audit --omit=dev` in the staged Google package reports 3 moderate
+  advisories (`uuid` via `cloudevents` via `@google-cloud/functions-framework`).
+  The only offered fix is a breaking downgrade, so it was not applied
+
 ## Not established
 
-- Docker image build/run or Compose startup (no container engine available)
+- x86_64 Docker image build/run or Compose startup
 - A ConoHa VPS installation, ingress, TLS, restart behavior or production load
 - Cloud Run, Azure Container Apps or ECS Fargate provider validation/deployment
 - Lambda managed runtime or Azure Functions host execution/authentication
 - Google managed function source build, IAM enforcement or internal ingress
 - Cloudflare edge upload/deployment, account permissions or production limits
 - Any cloud storage, Secrets, authentication enforcement or async outbound HTTP portability
-- macOS/Windows/arm64 behavior
+- Windows behavior, Linux arm64 native (outside Docker) and macOS x86_64
 - GitHub Actions success on the remote repository
 
 The support matrix intentionally separates these from local evidence.
