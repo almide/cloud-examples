@@ -1,34 +1,39 @@
 #!/usr/bin/env bash
-# Build the exact reviewed compiler revision. Rust 1.99.0, git, and a C toolchain required.
+# Install the pinned Almide release binary. The tag is in .almide-release and the
+# expected sha256 of each platform archive in .almide-checksums.sha256; an archive
+# that does not match is never unpacked or installed. Needs curl and tar.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-revision=$(tr -d '\r\n' < .almide-revision)
-[[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid compiler revision' >&2; exit 1; }
-source_dir="$PWD/.tools/almide-source"
-if [[ ! -d "$source_dir/.git" ]]; then
-  mkdir -p .tools
-  git init "$source_dir"
-  git -C "$source_dir" remote add origin https://github.com/almide/almide.git
+tag=$(tr -d '\r\n' < .almide-release)
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release tag in .almide-release' >&2; exit 1; }
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64) platform=linux-x86_64 ;;
+  Linux-aarch64 | Linux-arm64) platform=linux-aarch64 ;;
+  Darwin-arm64) platform=macos-aarch64 ;;
+  Darwin-x86_64) platform=macos-x86_64 ;;
+  *) echo "No Almide release archive for $(uname -s) $(uname -m)" >&2; exit 1 ;;
+esac
+archive="almide-$platform.tar.gz"
+expected=$(awk -v f="$archive" '$2 == f { print $1 }' .almide-checksums.sha256)
+[[ "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo "No checksum for $archive" >&2; exit 1; }
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+curl --fail --location --silent --show-error --retry 3 \
+  -o "$work/$archive" "https://github.com/almide/almide/releases/download/$tag/$archive"
+if command -v sha256sum >/dev/null; then
+  actual=$(sha256sum "$work/$archive" | awk '{ print $1 }')
+else
+  actual=$(shasum -a 256 "$work/$archive" | awk '{ print $1 }')
 fi
-if [[ "$(git -C "$source_dir" remote get-url origin)" != https://github.com/almide/almide.git ]]; then
-  echo 'Unexpected compiler source remote' >&2; exit 1
+if [[ "$actual" != "$expected" ]]; then
+  echo "Checksum mismatch for $archive: expected $expected, got $actual" >&2; exit 1
 fi
-require_clean_source() {
-  if [[ -n "$(git -C "$source_dir" status --porcelain --untracked-files=all)" ]]; then
-    echo 'Compiler source has modified or untracked files. Preserve your edits and use a clean checkout.' >&2
-    exit 1
-  fi
-}
-# Never replace local edits, or label them as the pinned upstream revision.
-# Normal ignored build artifacts (for example target/) do not make it dirty.
-require_clean_source
-git -C "$source_dir" fetch --depth 1 origin "$revision"
-git -C "$source_dir" checkout --detach "$revision"
-[[ "$(git -C "$source_dir" rev-parse HEAD)" == "$revision" ]]
-require_clean_source
-# The root rust-toolchain.toml selects the pinned Rust toolchain.
-cargo build --locked --release --bin almide --manifest-path "$source_dir/Cargo.toml"
+tar -xzf "$work/$archive" -C "$work"
+# almide verify execs almide-verify from next to itself, so both are installed.
 mkdir -p .tools/bin
-cp "$source_dir/target/release/almide" .tools/bin/almide
-printf '%s\n' "$revision" > .tools/bin/almide.revision
+for tool in almide almide-verify; do
+  install -m 0755 "$work/almide-$platform/$tool" ".tools/bin/$tool"
+done
+printf '%s\n' "$tag" > .tools/bin/almide.release
 .tools/bin/almide --version
