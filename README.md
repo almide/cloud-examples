@@ -25,9 +25,10 @@ be the same compiler.
 | Wasm + generated JS, Node 24.19.0 | Passed locally | Same 18 cases + 1,000 repeated string calls | Not applicable |
 | Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed; real `wrangler deploy` uploaded | Same 18 cases passed over HTTP locally and on the workers.dev edge | Deployed temporarily to workers.dev, verified, deleted |
 | ConoHa Docker / Compose | Image built and Compose started on Docker 29.6.1, linux/arm64 only | Same 18 cases passed against the container | Not deployed |
-| Cloud Run / Azure Container Apps / ECS Fargate | Provider templates and local safety/shape checks passed; image not built | Shared native contract passed; provider runtime not run | Not deployed |
+| Google Cloud Run container | linux/amd64 image built (QEMU on Apple silicon), pushed by digest; `replace --dry-run` and deploy passed | Same 18 cases passed from a VM inside the VPC with an ID token | Deployed temporarily with internal ingress + IAM, verified, deleted |
+| Azure Container Apps / ECS Fargate | Provider templates and local safety/shape checks passed; image not built for them | Shared native contract passed; provider runtime not run | Not deployed |
 | AWS Lambda, Node 24 | Source package generated; adapter/config tests passed | 18 common cases, base64/event/HEAD/warm-call checks; staged package executed locally | Not deployed |
-| Google Cloud Run functions, Node 24 | Source package and actual local Functions Framework tested | 18 direct adapter cases; HTTP tests explicitly cover framework JSON-prevalidation differences | Not deployed |
+| Google Cloud Run functions, Node 24 | Source package, local Functions Framework, and managed source build via `deploy.sh --execute` | 18 direct adapter cases; in the cloud, 18 octet-stream cases passed and JSON showed the same 3 framework rejections as locally | Deployed temporarily with internal ingress + IAM, verified, deleted |
 | Azure Functions v4, Node 24 | Source package, adapter/config tests and actual SDK request objects tested | 18 common cases; Functions host/key enforcement not run | Not deployed |
 
 GitHub Actions (`ubuntu-24.04`, full bootstrap and every reproduction step) has
@@ -83,8 +84,9 @@ npm run dev:workers
 Container templates use existing infrastructure and private/internal ingress;
 function examples retain IAM or function-key authentication. They do not create
 accounts or silently grant caller access. Read [deployment safety and cleanup](docs/deployment-safety.md)
-before applying any example. Only the Cloudflare Workers example has been deployed,
-temporarily, for verification; the other providers have not.
+before applying any example. The Cloudflare Workers, Google Cloud Run container and
+Cloud Run functions examples have been deployed temporarily for verification and
+then deleted; the other providers have not been deployed.
 
 ### Prepare and test function packages locally
 

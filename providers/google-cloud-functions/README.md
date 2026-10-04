@@ -43,7 +43,19 @@ export GCP_BUILD_SERVICE_ACCOUNT=projects/YOUR_PROJECT/serviceAccounts/BUILD_ACC
 From the repository root, `bash providers/google-cloud-functions/deploy.sh`
 only prints a reviewed, shell-escaped command. Adding `--execute` runs it and
 uploads source, builds/stores an image, and deploys a billable service. Neither
-command is run by the default build/test workflow. Cloud deployment is untested.
+command is run by the default build/test workflow. On first use in a region,
+source deployment also creates an Artifact Registry repository named
+`cloud-run-source-deploy` and asks for confirmation (non-interactive shells accept
+the default). Include that repository in cleanup.
+
+On 2026-10-04 `deploy.sh --execute` was run in a dedicated, disposable project
+(`asia-northeast1`, build service account with `roles/cloudbuild.builds.builder`,
+runtime service account with no roles). From a VM inside the VPC with an ID token,
+all 18 shared cases passed as `application/octet-stream`. As `application/json`,
+the same three fixtures the local framework rejects (invalid JSON, the malformed
+oversized body, trailing text) were rejected before Almide ran. Unauthenticated
+requests from the VPC got 403; internet requests with a valid token got 404. The
+project was then deleted.
 
 The helper selects Node 24, internal ingress, enforced invoker IAM checks, no
 unauthenticated access, one request per instance, zero minimum and three maximum
@@ -97,7 +109,7 @@ and the [deployment safety guide](../../docs/deployment-safety.md).
   passed. All 18 octet-stream cases reached the shared behavior. Three JSON
   fixtures (invalid JSON, an oversized malformed body, and trailing JSON) instead
   produced framework 400 HTML responses; a valid oversized JSON body still
-  reached Almide's 413. This is local framework evidence, not a cloud result
+  reached Almide's 413. The managed deployment showed the same split
 - HTTP functions and CloudEvents functions have different signatures. Pub/Sub,
   Cloud Storage and other Eventarc integrations need a distinct event adapter,
   plus retry/idempotency design; this sample does not register an event function

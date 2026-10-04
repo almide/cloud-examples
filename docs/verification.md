@@ -141,13 +141,57 @@ not captured, and it did not recur on a redeploy (with tail) or on a fresh
 deploy, so it is recorded as unexplained rather than attributed to Almide or to
 propagation.
 
+## Google Cloud deployments
+
+Date: 2026-10-04. gcloud 587.0.0, a new dedicated project with billing,
+region `asia-northeast1`. The project was deleted afterwards.
+
+Setup, following the provider READMEs' prerequisites: Run, Artifact Registry,
+Cloud Build, Compute, IAM and Logging APIs; a Docker repository; a runtime
+service account with no roles; a build service account with
+`roles/cloudbuild.builds.builder`; a caller service account granted
+`roles/run.invoker` on each service only. The probe was an e2-small Debian 12 VM
+with **no external IP** running as the caller account, in the default subnet with
+**Private Google Access enabled**, reached through IAP SSH. It ran the repository's
+`verifyHttp` with Node 24.21.0, adding a metadata-server ID token (audience =
+service URL) to each request.
+
+Cloud Run container:
+
+1. `docker buildx build --platform linux/amd64 --load` on Apple silicon (QEMU).
+   The same 18 cases passed against that image locally under emulation
+2. Pushed and pinned by digest. buildx produced an OCI index with a linux/amd64
+   manifest and an attestation manifest; Cloud Run accepted the index digest
+3. `render.mjs`, `gcloud run services replace --dry-run`, then the real
+   `replace`: service Ready with internal ingress and concurrency 1
+4. From the VPC: 18/18 with an ID token; 403 without one
+5. From the internet with a valid user ID token: 404 (ingress)
+
+The first in-VPC run, about a minute after granting `roles/run.invoker`, failed
+all cases; status codes were not captured. A rerun a minute later passed 18/18
+without other changes, consistent with IAM propagation delay.
+
+Cloud Run functions:
+
+1. `deploy.sh --execute` with the README's variables. Source deploy created an
+   extra `cloud-run-source-deploy` repository, after a Y/n prompt that the
+   non-interactive shell accepted by default. `deploy.sh` itself takes no
+   `--quiet`
+2. Deployed with internal ingress, IAM check, concurrency 1, 30-second timeout,
+   max 3 instances and the runtime account
+3. From the VPC with an ID token: 18/18 as `application/octet-stream`. As
+   `application/json`, 15 passed and the 3 known framework-rejected fixtures
+   (invalid JSON, body limit, trailing text) failed, matching the local record
+4. 403 without a token from the VPC; 404 with a valid token from the internet
+
 ## Not established
 
-- x86_64 Docker image build/run or Compose startup
+- x86_64 Compose startup or native x86_64 Docker build (the amd64 image was
+  built and run only under QEMU, and run on Cloud Run)
 - A ConoHa VPS installation, ingress, TLS, restart behavior or production load
-- Cloud Run, Azure Container Apps or ECS Fargate provider validation/deployment
+- Azure Container Apps or ECS Fargate provider validation/deployment
 - Lambda managed runtime or Azure Functions host execution/authentication
-- Google managed function source build, IAM enforcement or internal ingress
+- Google Cloud costs, load, cold-start latency or long-running behavior
 - Cloudflare production limits, load behavior, or the one unexplained first-request 500
 - Any cloud storage, Secrets, authentication enforcement or async outbound HTTP portability
 - Windows behavior, Linux arm64 native (outside Docker) and macOS x86_64

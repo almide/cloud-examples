@@ -5,10 +5,14 @@ the existing Almide binary, with no Google SDK or additional application server.
 `GET /health` returns `{"ok":true}`; `POST /greet` with `{"name":"Almide"}` returns
 `{"message":"Hello, Almide!"}`.
 
-**Status:** template and local renderer checked; no Docker build, Google API
-validation, registry push, or cloud deployment has been performed. The shared
-native HTTP contract is tested separately. Every cloud command below is an
-operator-run example, not part of the repository's build/test workflow.
+**Status:** on 2026-10-04 the commands below were run in a dedicated, disposable
+project in `asia-northeast1`: linux/amd64 image built with buildx (QEMU on Apple
+silicon), pushed and pinned by digest, rendered, validated with `--dry-run` and
+deployed. From a VM inside the same VPC, the shared 18-case HTTP contract passed
+with an ID token, and an unauthenticated request got 403. From the internet, a
+request with a valid token got 404 from ingress. The project was then deleted.
+Every cloud command below is an operator-run example, not part of the
+repository's build/test workflow.
 
 ## Defaults and prerequisites
 
@@ -130,8 +134,8 @@ gcloud run services replace build/cloud-run.service.yaml \
 ```
 
 The [replace command](https://docs.cloud.google.com/sdk/gcloud/reference/run/services/replace)
-supports YAML specifications and optional validation without application. No
-Google-side dry run was executed for this sample. If deployment fails, inspect
+supports YAML specifications and optional validation without application. Both
+the dry run and the real replace succeeded on 2026-10-04. If deployment fails, inspect
 the returned error and revision logs; do not relax ingress or IAM as a shortcut.
 
 ## Verify the deployment from an authorized network
@@ -228,6 +232,6 @@ Registry images. Review and clean up only example-owned images, dedicated
 identities, secrets, and network resources separately; retained resources and
 logs may still cost money. Never delete shared prerequisites automatically.
 
-Official documentation was checked on **2026-10-04**. Static parsing/rendering
-does not establish that deployment, private invocation, probes, or costs have
-been verified in a Google Cloud account.
+Official documentation was checked on **2026-10-04**. Deployment, private
+invocation and probes were verified once in a disposable project (see Status);
+costs, load behavior and long-running operation were not.
