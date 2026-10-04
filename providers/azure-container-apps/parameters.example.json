@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerAppName": { "value": "almide-api" },
+    "location": { "value": "REPLACE_WITH_ENVIRONMENT_REGION" },
+    "environmentResourceId": { "value": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/REPLACE_WITH_ENVIRONMENT_GROUP/providers/Microsoft.App/managedEnvironments/REPLACE_WITH_ENVIRONMENT" },
+    "registryServer": { "value": "REPLACE_WITH_REGISTRY.azurecr.io" },
+    "imageRepository": { "value": "almide-api" },
+    "imageDigest": { "value": "0000000000000000000000000000000000000000000000000000000000000000" },
+    "pullIdentityResourceId": { "value": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/REPLACE_WITH_IDENTITY_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/REPLACE_WITH_PULL_IDENTITY" }
+  }
+}

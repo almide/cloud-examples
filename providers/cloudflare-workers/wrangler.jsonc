@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "almide-cloud-example",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-04",
+  // Almide's generated glue has a top-level import.meta.url and an unused
+  // node:fs/promises fallback. Keep both requirements explicit and tested.
+  "compatibility_flags": ["nodejs_compat", "new_module_registry"],
+  "workers_dev": true
+}

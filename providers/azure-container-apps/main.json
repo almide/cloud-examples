@@ -1,0 +1,142 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerAppName": {
+      "type": "string",
+      "defaultValue": "almide-api",
+      "minLength": 2,
+      "maxLength": 32,
+      "metadata": {
+        "description": "New app name: lowercase letters, digits and single hyphens; start with a letter and end with a letter or digit. Do not target an unrelated existing app."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": { "description": "Azure region of the existing Container Apps environment." }
+    },
+    "environmentResourceId": {
+      "type": "string",
+      "metadata": { "description": "Full resource ID of an existing Microsoft.App/managedEnvironments resource with the Consumption workload profile." }
+    },
+    "registryServer": {
+      "type": "string",
+      "metadata": { "description": "Existing Azure Container Registry login server hostname, with no scheme or path." }
+    },
+    "imageRepository": {
+      "type": "string",
+      "defaultValue": "almide-api",
+      "metadata": { "description": "Existing image repository in that registry, without a tag or digest." }
+    },
+    "imageDigest": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "metadata": { "description": "Immutable image digest: 64 lowercase hexadecimal characters, WITHOUT the sha256: prefix. Must identify the tested linux/amd64 image." }
+    },
+    "pullIdentityResourceId": {
+      "type": "string",
+      "metadata": { "description": "Full resource ID of an existing user-assigned managed identity already permitted to pull the selected ACR repository." }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2025-07-01",
+      "name": "[parameters('containerAppName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('pullIdentityResourceId')]": {}
+        }
+      },
+      "properties": {
+        "environmentId": "[parameters('environmentResourceId')]",
+        "workloadProfileName": "Consumption",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "identitySettings": [
+            {
+              "identity": "[parameters('pullIdentityResourceId')]",
+              "lifecycle": "None"
+            }
+          ],
+          "ingress": {
+            "external": false,
+            "allowInsecure": false,
+            "targetPort": 8080,
+            "transport": "http"
+          },
+          "registries": [
+            {
+              "server": "[parameters('registryServer')]",
+              "identity": "[parameters('pullIdentityResourceId')]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "api",
+              "image": "[format('{0}/{1}@sha256:{2}', parameters('registryServer'), parameters('imageRepository'), parameters('imageDigest'))]",
+              "env": [
+                { "name": "PORT", "value": "8080" }
+              ],
+              "resources": { "cpu": 0.25, "memory": "0.5Gi" },
+              "probes": [
+                {
+                  "type": "Startup",
+                  "httpGet": { "path": "/health", "port": 8080, "scheme": "HTTP" },
+                  "initialDelaySeconds": 3,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 10,
+                  "successThreshold": 1
+                },
+                {
+                  "type": "Liveness",
+                  "httpGet": { "path": "/health", "port": 8080, "scheme": "HTTP" },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 30,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 6,
+                  "successThreshold": 1
+                },
+                {
+                  "type": "Readiness",
+                  "httpGet": { "path": "/health", "port": 8080, "scheme": "HTTP" },
+                  "initialDelaySeconds": 3,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 6,
+                  "successThreshold": 1
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "rules": [
+              {
+                "name": "http",
+                "http": { "metadata": { "concurrentRequests": "1" } }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "containerAppId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+    },
+    "fqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2025-07-01').configuration.ingress.fqdn]"
+    }
+  }
+}

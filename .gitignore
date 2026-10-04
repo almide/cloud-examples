@@ -1,0 +1,13 @@
+.tools/
+build/
+node_modules/
+.wrangler/
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+*.log
+.aws-sam/
+local.settings.json
+.azure/
+*.private.json

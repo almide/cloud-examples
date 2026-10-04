@@ -1,0 +1,39 @@
+// Shared, synchronous application logic. No sockets, environment, or provider SDK.
+import json
+
+fn reply(status: Int, body: Value) -> String = json.stringify(value.object([
+  ("status", value.int(status)),
+  ("body", body),
+]))
+
+fn error(status: Int, message: String) -> String = reply(status, value.object([
+  ("error", value.str(message)),
+]))
+
+fn method_error(allow: String) -> String = json.stringify(value.object([
+  ("status", value.int(405)),
+  ("body", value.object([("error", value.str("method_not_allowed"))])),
+  ("allow", value.str(allow)),
+]))
+
+fn greet(body: String) -> String = match json.parse(body) {
+  err(_) => error(400, "invalid_json"),
+  ok(data) => match json.get_string(data, "name") {
+    none => error(400, "name_required"),
+    some(name) => if string.len(name) == 0 or string.len(name) > 100 then
+      error(400, "name_length")
+    else reply(200, value.object([("message", value.str("Hello, " + name + "!"))])),
+  },
+}
+
+pub fn handle(method: String, target: String, body: String) -> String = {
+  let path = string.split(target, "?") |> list.get(0) ?? target
+  if string.len(body) > 8192 then error(413, "body_too_large")
+  else if path == "/health" then {
+    if method == "GET" then reply(200, value.object([("ok", value.bool(true))]))
+    else method_error("GET")
+  } else if path == "/greet" then {
+    if method == "POST" then greet(body)
+    else method_error("POST")
+  } else error(404, "not_found")
+}
