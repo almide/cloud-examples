@@ -6,5 +6,8 @@
   // Almide's generated glue has a top-level import.meta.url and an unused
   // node:fs/promises fallback. Keep both requirements explicit and tested.
   "compatibility_flags": ["nodejs_compat", "new_module_registry"],
-  "workers_dev": true
+  "workers_dev": true,
+  // /notes storage. Without an id, `wrangler deploy` provisions a namespace;
+  // `wrangler dev --local` simulates it. Remove the binding and /notes answers 503.
+  "kv_namespaces": [{ "binding": "NOTES" }]
 }

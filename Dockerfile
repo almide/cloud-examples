@@ -14,6 +14,9 @@ WORKDIR /app
 COPY --from=build /work/build/server ./server
 COPY LICENSE /app/LICENSE
 COPY licenses/ /app/licenses/
+# Mount point for STORE_DIR (/notes storage), owned by the runtime user so a
+# fresh named volume inherits it. Unused unless STORE_DIR is set.
+RUN install -d -o 65532 -g 65532 /data
 ENV PORT=8080
 EXPOSE 8080
 USER 65532:65532

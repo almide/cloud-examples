@@ -112,3 +112,21 @@ test('warm and overlapping invocations remain isolated', async () => {
     assert.deepEqual(JSON.parse(result.body), { message: `Hello, ${i}!` });
   }
 });
+
+test('Node function host runs the notes scenario against an injected store', async t => {
+  const { callApi } = await import('../adapters/node-wasm.mjs');
+  const { memoryStore } = await import('../adapters/step.mjs');
+  const store = memoryStore();
+  const { verifyNotes } = await import('./notes.mjs');
+  await verifyNotes(t, async (method, path, body) => {
+    const r = await callApi(method, path, body, { store });
+    return { status: r.status, allow: r.allow ?? null, json: r.body };
+  });
+});
+
+test('function adapters without GCS_BUCKET answer /notes with 503', async () => {
+  const c = { method: 'GET', path: '/notes' };
+  const result = await lambda(eventFor(c));
+  assert.equal(result.statusCode, 503);
+  assert.deepEqual(JSON.parse(result.body), { error: 'storage_unavailable' });
+});

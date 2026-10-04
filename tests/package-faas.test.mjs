@@ -10,7 +10,8 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const provider = 'aws-lambda';
   const files = {
-    'adapters/node-wasm.mjs': '// adapter\n', 'build/app.js': '// generated\n',
+    'adapters/node-wasm.mjs': '// adapter\n', 'adapters/step.mjs': '// step\n',
+    'adapters/gcs-store.mjs': '// gcs\n', 'build/app.js': '// generated\n',
     'build/app.wasm': 'fixture bytes', 'LICENSE': 'fixture license',
     'licenses/Almide-MIT.txt': 'third-party notice',
     [`providers/${provider}/handler.mjs`]: 'export const handler = () => {};',

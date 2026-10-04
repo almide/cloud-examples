@@ -1,4 +1,6 @@
 // Shared, synchronous application logic. No sockets, environment, or provider SDK.
+// Storage is described, not performed: `step` asks the host for the keys it needs
+// to read and returns the write the host must make before answering.
 import json
 
 fn reply(status: Int, body: Value) -> String = json.stringify(value.object([
@@ -36,4 +38,84 @@ pub fn handle(method: String, target: String, body: String) -> String = {
     if method == "POST" then greet(body)
     else method_error("POST")
   } else error(404, "not_found")
+}
+
+// --- /notes: a small list kept by the host under one key ---------------------
+
+fn read_request(key: String) -> String = json.stringify(value.object([
+  ("read", value.array([value.str(key)])),
+]))
+
+// none: the host has not read `key` yet; some(none): it did, and nothing is stored.
+fn lookup(reads: Value, key: String) -> Option[Option[String]] =
+  match json.get_path(reads, json.field(json.root(), key)) {
+    none => none,
+    some(v) => match value.as_string(v) {
+      ok(text) => some(some(text)),
+      err(_) => some(none),
+    },
+  }
+
+fn stored_notes(doc: Option[String]) -> Result[List[Value], String] = match doc {
+  none => ok([]),
+  some(text) => match json.parse(text) {
+    err(e) => err(e),
+    ok(v) => value.as_array(v),
+  },
+}
+
+fn note_text(body: String) -> Result[String, String] = match json.parse(body) {
+  err(_) => err("invalid_json"),
+  ok(data) => match json.get_string(data, "text") {
+    none => err("text_required"),
+    some(text) => if string.len(text) == 0 or string.len(text) > 280 then err("text_length")
+      else ok(text),
+  },
+}
+
+fn list_notes(notes: List[Value]) -> String =
+  reply(200, value.object([("notes", value.array(list.reverse(notes)))]))
+
+fn add_note(notes: List[Value], text: String) -> String = {
+  let n = match list.last(notes) {
+    some(last) => (json.get_int(last, "n") ?? 0) + 1,
+    none => 1,
+  }
+  let note = value.object([("n", value.int(n)), ("text", value.str(text))])
+  let kept = list.take_end(list.flatten([notes, [note]]), 50)
+  json.stringify(value.object([
+    ("status", value.int(201)),
+    ("body", value.object([("note", note)])),
+    ("write", value.object([
+      ("key", value.str("notes")),
+      ("value", value.str(json.stringify(value.array(kept)))),
+    ])),
+  ]))
+}
+
+fn with_notes(reads: Value, f: (List[Value]) -> String) -> String = match lookup(reads, "notes") {
+  none => read_request("notes"),
+  some(doc) => match stored_notes(doc) {
+    ok(notes) => f(notes),
+    err(_) => error(500, "store_corrupt"),
+  },
+}
+
+fn notes(method: String, body: String, reads: Value) -> String =
+  if method == "GET" then with_notes(reads, (notes) => list_notes(notes))
+  else if method == "POST" then match note_text(body) {
+    err(code) => error(400, code),
+    ok(text) => with_notes(reads, (notes) => add_note(notes, text)),
+  }
+  else method_error("GET, POST")
+
+// The host calls step with reads = "{}", performs any "read" it gets back (a
+// JSON object of key -> stored string or null), and calls again; a reply with
+// "status" is final, and its optional "write" is made before the reply is sent.
+pub fn step(method: String, target: String, body: String, reads: String) -> String = {
+  let path = string.split(target, "?") |> list.get(0) ?? target
+  if path == "/notes" and string.len(body) <= 8192 then match json.parse(reads) {
+    ok(r) => notes(method, body, r),
+    err(_) => error(500, "invalid_reads"),
+  } else handle(method, target, body)
 }

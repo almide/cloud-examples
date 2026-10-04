@@ -19,5 +19,7 @@ command=(gcloud run deploy "$GCP_SERVICE" --project "$GCP_PROJECT" --region "$GC
   --service-account "$GCP_SERVICE_ACCOUNT" --build-service-account "$GCP_BUILD_SERVICE_ACCOUNT"
   --no-allow-unauthenticated --invoker-iam-check --ingress internal --concurrency 1
   --min-instances 0 --max-instances 3 --memory 256Mi --cpu 1 --timeout 30s)
+# Optional: the bucket /notes is stored in. Without it, /notes answers 503.
+if [[ -n "${GCS_BUCKET:-}" ]]; then command+=(--set-env-vars "GCS_BUCKET=$GCS_BUCKET"); fi
 printf '%q ' "${command[@]}"; printf '\n'
 if [[ ${1:-} == '--execute' ]]; then exec "${command[@]}"; fi

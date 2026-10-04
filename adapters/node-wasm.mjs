@@ -1,16 +1,21 @@
 // Common Node host for the three function adapters. The compiler-generated JS
 // owns the Wasm ABI; every request uses the same synchronous Almide function.
 import { readFile } from 'node:fs/promises';
-import { init, handle } from '../build/app.js';
+import { init, step } from '../build/app.js';
+import { runStep } from './step.mjs';
+import { gcsStore } from './gcs-store.mjs';
 
 let initialization;
 
-export async function callApi(method, target, body = '') {
+// GCS_BUCKET selects Cloud Storage; without it, requests that need storage get 503.
+const defaultStore = process.env.GCS_BUCKET ? gcsStore(process.env.GCS_BUCKET) : null;
+
+export async function callApi(method, target, body = '', { store = defaultStore } = {}) {
   if (![method, target, body].every(value => typeof value === 'string')) {
     throw new TypeError('callApi expects method, target and body strings');
   }
   initialization ??= readFile(new URL('../build/app.wasm', import.meta.url))
     .then(bytes => init(bytes));
   await initialization;
-  return JSON.parse(handle(method, target, body));
+  return runStep(step, method, target, body, store);
 }

@@ -3,4 +3,7 @@ import api
 pub fn handle(method: String, target: String, body: String) -> String =
   api.handle(method, target, body)
 
+pub fn step(method: String, target: String, body: String, reads: String) -> String =
+  api.step(method, target, body, reads)
+
 fn main() -> Unit = {}
