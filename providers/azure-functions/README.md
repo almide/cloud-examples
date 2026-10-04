@@ -50,6 +50,12 @@ small package into an app containing unrelated functions.
 
 ## Configuration, secrets, logs and cleanup
 
+`/notes` has no store on this route: the adapter passes none, so `/notes`
+answers 503 `storage_unavailable` (the shared `callApi` default, tested
+through the Lambda adapter). A store would be a host-side
+`{ get, put }` passed to `callApi`, as Cloud Run functions does with Cloud Storage.
+
+
 Azure application settings appear in the Node host environment. `callApi`
 does not pass those settings into Wasm; it currently sends only method, target
 and body. No application secret retrieval is implemented. A later Key Vault

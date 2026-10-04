@@ -67,6 +67,13 @@ curl --fail http://127.0.0.1:8080/greet \
 docker compose -f providers/conoha/compose.yaml down
 ```
 
+`/notes` is stored by the Almide server itself as files under `STORE_DIR=/data`,
+a named volume (`notes`) that outlives the container; the image creates `/data`
+owned by the runtime user, so the read-only root filesystem stays read-only.
+`docker compose down` keeps the volume; `docker compose down -v` deletes the notes.
+Locally (macOS arm64) the notes scenario passed and the notes survived
+`down` / `up`; the ConoHa VPS run above predates `/notes`.
+
 Compose binds the app only to the host loopback address. For public access, place
 a TLS reverse proxy in front and configure the intended ConoHa security group
 and guest firewall yourself. Docker-published ports can bypass UFW; UFW alone is

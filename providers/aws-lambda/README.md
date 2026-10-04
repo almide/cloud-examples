@@ -45,6 +45,11 @@ cleanup. Reserved concurrency is not a spending cap.
 
 ## Configuration, secrets and logs
 
+`/notes` has no store on this route: the adapter passes none, so `/notes`
+answers 503 `storage_unavailable` (tested). A store would be a host-side
+`{ get, put }` passed to `callApi`, as Cloud Run functions does with Cloud Storage.
+
+
 Environment variables configured on Lambda are visible to the Node host through
 `process.env`. The current shared `callApi` boundary passes only method, target
 and body; it does not import host environment values into Wasm. There are no
