@@ -260,9 +260,52 @@ locally and used through `dev_overrides`), region c3j1.
    `CapDrop=[ALL]`; `docker compose down` took 0.5 s
 6. `terraform destroy` removed all 5 resources; the VPS existed about 23 minutes
 
+## /notes: storage decided by Almide, performed by the host
+
+Date: 2026-10-04, Almide `v0.66.0` release binary. The probe that settled the
+design: `http.get` builds natively but a `--target wasm --host js` build refuses
+it (E081), while a synchronous `@extern(wasm, "js", ...)` builds. JS storage APIs
+are asynchronous, so `api.step` returns the reads it needs and the write to make,
+and each host performs them (root README, "Storage: Almide decides, the host
+performs").
+
+Local (macOS arm64, Node 24.21.0):
+
+1. `npm test` 156/156: the 10-request scenario through generated Wasm with an
+   in-memory store, the stored document, 503 without a store, 500 on a corrupt
+   document, the 50-note cap; native with `STORE_DIR` (and notes surviving a
+   server restart) and native without storage (503); the Node function host with
+   an injected store, and Lambda without one (503)
+2. `test:workers` 29/29 with a local KV (`--persist-to` a fresh directory);
+   `test:google-framework` 39/39; `test:staged-functions` 38/38
+3. Compose with the named volume: 18 cases + the scenario, then `down` / `up`
+   kept both notes; root filesystem still read-only, UID 65532
+
+Live:
+
+1. Cloudflare Workers: `wrangler deploy` provisioned the KV namespace
+   `almide-cloud-example-notes` from the id-less binding. 18 cases + the scenario
+   passed (29/29); `wrangler kv key get notes --remote` returned exactly the two
+   saved notes. `wrangler delete` left the namespace; it was deleted separately
+2. Google, a new disposable project (deleted afterwards), one bucket per service
+   with public access prevention, `roles/storage.objectUser` for the runtime
+   account on each bucket only:
+   - Cloud Run container with `GCS_BUCKET`: the Almide server took the
+     metadata-server token and read/wrote Cloud Storage with `http.request`.
+     From the in-VPC VM with an ID token: 18/18 and the scenario 11/11
+   - Cloud Run functions with `GCS_BUCKET` via `deploy.sh`: the Node host read
+     and wrote with `fetch`. 18/18 and the scenario 11/11 (octet-stream bodies)
+   - Each bucket's `notes` object held exactly the two saved notes
+     (`application/json`, 53 bytes); unauthenticated requests got 403
+3. The ConoHa VPS was not rerun with `/notes` (its run predates it)
+
+Not shown: behavior under concurrent writers. The single-key read-modify-write
+has no conditional write, so concurrent instances can lose a note.
+
 ## Not established
 
 - Native x86_64 Docker build outside the ConoHa VPS
+- `/notes` on the ConoHa VPS, and `/notes` under concurrent writers on any route
 - ConoHa TLS/reverse proxy, restart behavior, production load, or plans smaller
   than `g2l-t-c4m4`
 - Azure Container Apps or ECS Fargate provider validation/deployment

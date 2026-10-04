@@ -38,7 +38,15 @@ export GCP_REGION=YOUR_REGION
 export GCP_SERVICE=YOUR_NEW_SERVICE
 export GCP_SERVICE_ACCOUNT=RUNTIME_ACCOUNT@YOUR_PROJECT.iam.gserviceaccount.com
 export GCP_BUILD_SERVICE_ACCOUNT=projects/YOUR_PROJECT/serviceAccounts/BUILD_ACCOUNT@YOUR_PROJECT.iam.gserviceaccount.com
+# Optional: /notes storage. Without it, /notes answers 503.
+export GCS_BUCKET=YOUR_EXISTING_BUCKET
 ```
+
+With `GCS_BUCKET`, `deploy.sh` adds `--set-env-vars GCS_BUCKET=...` and
+[adapters/gcs-store.mjs](../../adapters/gcs-store.mjs) stores `/notes` as the object
+`notes` with `fetch` and the metadata-server token (no SDK dependency). Grant the
+runtime account `roles/storage.objectUser` on that bucket only. The shared Almide
+`step` decides the read and the write; the Node host performs them.
 
 From the repository root, `bash providers/google-cloud-functions/deploy.sh`
 only prints a reviewed, shell-escaped command. Adding `--execute` runs it and

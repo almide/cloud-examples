@@ -6,8 +6,10 @@ One small JSON API, one shared Almide implementation, three execution routes:
 - **Wasm + compiler-generated JavaScript host**: Cloudflare Workers
 - **Wasm + Node function adapters**: AWS Lambda, Google Cloud Run functions, Azure Functions
 
-The first example proves portable application logic. It is not a cloud SDK,
-production framework, storage abstraction, or claim that all Almide I/O works on
+The example proves portable application logic, including logic that reads and
+writes storage: `/notes` keeps a small list in Workers KV, Cloud Storage or a
+file, and the same Almide code decides every read and write on every route. It
+is not a cloud SDK, production framework, or claim that all Almide I/O works on
 every provider.
 
 ## Verified scope
@@ -37,6 +39,14 @@ See [verification notes](docs/verification.md#compiler-pin-moved-to-the-v0660-re
 | AWS Lambda, Node 24 | Source package generated; adapter/config tests passed | 18 common cases, base64/event/HEAD/warm-call checks; staged package executed locally | Not deployed |
 | Google Cloud Run functions, Node 24 | Source package, local Functions Framework, and managed source build via `deploy.sh --execute` | 18 direct adapter cases; in the cloud, 18 octet-stream cases passed and JSON showed the same 3 framework rejections as locally | Deployed temporarily with internal ingress + IAM, verified, deleted |
 | Azure Functions v4, Node 24 | Source package, adapter/config tests and actual SDK request objects tested | 18 common cases; Functions host/key enforcement not run | Not deployed |
+
+The `/notes` storage scenario ([tests/notes.mjs](tests/notes.mjs), 10 requests in
+order against an empty store) passed locally on every route (native files and a
+restart, Wasm, Node adapters, local workerd KV, Compose with a named volume and a
+container restart) and live on Cloudflare Workers with KV, on the Cloud Run
+container with Almide reading and writing Cloud Storage itself, and on Cloud Run
+functions with Cloud Storage; each store held exactly the two saved notes
+afterwards. The ConoHa VPS run predates `/notes`.
 
 GitHub Actions (`ubuntu-24.04`, compiler install and every reproduction step) has
 passed. See [verification notes](docs/verification.md) for exact commands and limits.
@@ -124,21 +134,52 @@ authentication emulators.
 ## What is shared
 
 [src/api.almd](src/api.almd) owns path routing, input validation, response status,
-JSON encoding, and method errors. Its public boundary is three strings in and
-one JSON envelope out: `handle(method, target, body) -> String`.
+JSON encoding, method errors and what to store. Its public boundary is strings in
+and one JSON envelope out: `step(method, target, body, reads) -> String`
+(`handle(method, target, body)` is the same without storage).
 
-- [src/native.almd](src/native.almd) maps Almide HTTP requests/responses
-- [src/wasm.almd](src/wasm.almd) exposes the same handler to generated JS
-- [worker.js](providers/cloudflare-workers/worker.js) maps Workers Request/Response
+- [src/native.almd](src/native.almd) maps Almide HTTP requests/responses, and performs storage itself
+- [src/wasm.almd](src/wasm.almd) exposes the same functions to generated JS
+- [worker.js](providers/cloudflare-workers/worker.js) maps Workers Request/Response, with KV as the store
 - [adapters/node-wasm.mjs](adapters/node-wasm.mjs) shares one lazy Wasm initializer across Node function adapters
-- [tests/cases.mjs](tests/cases.mjs) is the shared expected-behavior fixture
+- [adapters/step.mjs](adapters/step.mjs) runs `step` for the JS hosts; [adapters/gcs-store.mjs](adapters/gcs-store.mjs) is Cloud Storage for Node
+- [tests/cases.mjs](tests/cases.mjs) and [tests/notes.mjs](tests/notes.mjs) are the shared expected-behavior fixtures
 
 The HTTP response contains the envelope's `body`; `status` and optional `allow`
-become HTTP metadata. The host adapters do not duplicate the greeting logic.
+become HTTP metadata. The host adapters do not duplicate the application logic.
+
+### Storage: Almide decides, the host performs
+
+The generated JS host has no asynchronous I/O, and a stock Wasm build refuses
+Almide's HTTP client (`http.get` is E081 on `--target wasm`), while Workers KV,
+`fetch` and Cloud Storage are asynchronous. So the shared code describes storage
+instead of doing it:
+
+1. The host calls `step(method, target, body, "{}")`.
+2. If the envelope has `"read": ["notes"]`, the host reads those keys and calls
+   `step` again with `reads` = `{"notes": "<stored text>" | null}`.
+3. The envelope with `"status"` is final. If it has `"write": {"key", "value"}`,
+   the host stores it before answering; a failed read or write answers 503
+   `storage_unavailable`.
+
+| Route | Store | Who performs it |
+| --- | --- | --- |
+| Native (ConoHa, Cloud Run container) | `STORE_DIR` files, or `GCS_BUCKET` objects | Almide: `fs`, or `http.request` with a metadata-server token |
+| Cloudflare Workers | KV binding `NOTES` | `worker.js` |
+| Cloud Run functions | `GCS_BUCKET` objects | `adapters/gcs-store.mjs` (`fetch`, no SDK) |
+| Lambda, Azure Functions | none configured | `/notes` answers 503 |
+
+`/notes` keeps one JSON list under the key `notes`: `POST {"text": ...}` (1–280
+code points) adds `{n, text}` and answers 201; `GET` lists the newest first. Only
+the newest 50 are kept. A request is a read-modify-write of that one key: native
+`http.serve` handles one request at a time, so one native process never
+interleaves two, but concurrent instances (Workers isolates, Cloud Run instances,
+several replicas) can lose a write. There is no locking, versioning or
+conditional write; this is a demonstration of the boundary, not a database.
 
 ## Deliberately small contract
 
-- `/health`: GET; `/greet`: POST; query strings are ignored
+- `/health`: GET; `/greet`: POST; `/notes`: GET and POST; query strings are ignored
 - `name` must be a string of 1–100 Unicode code points; it is not trimmed
 - Request body limit in shared logic: 8,192 Unicode code points
 - Application errors are JSON: 400, 404, 405 with `Allow`, and 413
@@ -149,8 +190,8 @@ become HTTP metadata. The host adapters do not duplicate the greeting logic.
   ceiling and 30-second read/response limits. Rejections before the shared handler
   need not have the same JSON shape as application errors
 - Host-specific request normalization, streaming, transport limits, HEAD behavior,
-  concurrency/load, TLS, storage, retries, Secrets and outbound async I/O are
-  outside the portable contract. Provider authentication configuration is
+  concurrency/load, TLS, storage consistency, retries and Secrets are outside the
+  portable contract. Provider authentication configuration is
   included, but cloud enforcement has not been verified
 
 The JS host supports scalar/String boundaries, not arbitrary records and lists.

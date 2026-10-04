@@ -5,6 +5,7 @@ services:
       context: ../..
     environment:
       PORT: "8080"
+      STORE_DIR: /data # /notes storage, in the named volume below
     # Keep the sample private on the VPS. Add a TLS reverse proxy deliberately.
     ports:
       - "127.0.0.1:8080:8080"
@@ -12,3 +13,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    volumes:
+      - notes:/data
+
+volumes:
+  notes:

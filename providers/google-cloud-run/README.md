@@ -113,9 +113,20 @@ docker push "$IMAGE_TAG"
 docker buildx imagetools inspect "$IMAGE_TAG"
 # Copy the returned full Digest (64 hexadecimal characters), not the mutable tag.
 export IMAGE_DIGEST="${IMAGE_PATH}@sha256:REPLACE_WITH_64_HEX_DIGEST"
+# Optional: /notes storage. Without it, /notes answers 503.
+export GCS_BUCKET='your-existing-bucket'
 mkdir -p build
 node providers/google-cloud-run/render.mjs > build/cloud-run.service.yaml
 ```
+
+With `GCS_BUCKET`, the renderer adds it to the container environment and the
+Almide server itself stores `/notes` as the object `notes` in that bucket: it
+takes the runtime service account's token from the metadata server and calls the
+Cloud Storage JSON API with `http.request`. Grant the runtime account
+`roles/storage.objectUser` on that bucket only, for example
+`gcloud storage buckets add-iam-policy-binding gs://$GCS_BUCKET --member=serviceAccount:$RUNTIME_SERVICE_ACCOUNT --role=roles/storage.objectUser`.
+Keep the bucket's public access prevention on. Each Cloud Run instance does its
+own read-modify-write, so concurrent POSTs on different instances can lose one.
 
 [buildx](https://docs.docker.com/reference/cli/docker/buildx/build/) builds the shared
 image; [imagetools inspect](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect/)

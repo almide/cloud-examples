@@ -32,9 +32,30 @@ after a first deploy, the workers.dev route can briefly answer
 quotas and behavior under real load were not tested. See the root support matrix
 for the exact evidence.
 
-Bindings, Secrets, outbound asynchronous `fetch`, D1, R2 and KV are intentionally
-outside this first example. They would belong in host adapters. The generated JS
-host's environment is not a transparent bridge to Workers bindings.
+## /notes and KV
+
+`/notes` is stored in the KV binding `NOTES`. The shared Almide `step` says which
+key to read and what to write; `worker.js` performs it with `env.NOTES` (see the
+root README, "Storage: Almide decides, the host performs"). The generated JS
+host's environment is not a transparent bridge to Workers bindings, so the
+adapter, not Almide, touches KV.
+
+`wrangler.jsonc` names the binding without an `id`, so `wrangler deploy`
+provisions a namespace called `almide-cloud-example-notes`, and `wrangler dev
+--local` simulates one (the tests use `--persist-to` with a fresh directory).
+**`wrangler delete` does not delete that namespace**; remove it separately:
+
+```sh
+npx wrangler kv namespace list
+npx wrangler kv namespace delete --namespace-id <id>
+```
+
+On 2026-10-04 the scenario in `tests/notes.mjs` passed against the deployed
+Worker, the namespace then held exactly the two saved notes
+(`wrangler kv key get notes --remote`), and the Worker and namespace were deleted.
+KV is eventually consistent across locations and has no conditional write, so
+concurrent POSTs from different isolates can lose one. Secrets, D1, R2 and
+outbound `fetch` remain outside the example.
 
 ## Official references
 

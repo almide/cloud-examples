@@ -1,10 +1,116 @@
 import api
 import env
+import fs
 import http
 import json
+import url
+
+// --- Storage the native host performs for api.step -------------------------
+// STORE_DIR keeps each key in a file; GCS_BUCKET keeps it as a Cloud Storage
+// object, authenticated with the runtime identity from the metadata server.
+// With neither, a request that needs storage is answered 503.
+
+// An empty variable counts as unset.
+fn nonempty(o: Option[String]) -> Option[String] = match o {
+  some(v) => if v == "" then none else some(v),
+  none => none,
+}
+
+effect fn gcs_token() -> Result[String, String] = {
+  let (status, body) = http.request_status("GET",
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+    "", ["Metadata-Flavor": "Google"])!
+  if status != 200 then err("metadata token: HTTP ${status}")
+  else match json.get_string(json.parse(body)!, "access_token") {
+    some(token) => ok(token),
+    none => err("metadata token: no access_token"),
+  }
+}
+
+effect fn read_key(key: String) -> Result[Option[String], String] =
+  match nonempty(env.get("STORE_DIR")) {
+    some(dir) => {
+      let path = "${dir}/${key}.json"
+      if fs.exists(path) then ok(some(fs.read_text(path)!)) else ok(none)
+    },
+    none => match nonempty(env.get("GCS_BUCKET")) {
+      some(bucket) => {
+        let object = url.encode_component(key)
+        let (status, body) = http.request_status("GET",
+          "https://storage.googleapis.com/storage/v1/b/${bucket}/o/${object}?alt=media",
+          "", ["Authorization": "Bearer " + gcs_token()!])!
+        if status == 200 then ok(some(body))
+        else if status == 404 then ok(none)
+        else err("GCS read: HTTP ${status}")
+      },
+      none => err("no storage configured"),
+    },
+  }
+
+effect fn write_key(key: String, content: String) -> Result[Unit, String] =
+  match nonempty(env.get("STORE_DIR")) {
+    some(dir) => {
+      // Write then rename, so a reader never sees a half-written file.
+      let path = "${dir}/${key}.json"
+      fs.write(path + ".tmp", content)!
+      fs.rename(path + ".tmp", path)
+    },
+    none => match nonempty(env.get("GCS_BUCKET")) {
+      some(bucket) => {
+        let object = url.encode_component(key)
+        let (status, _) = http.request_status("POST",
+          "https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${object}",
+          content, ["Authorization": "Bearer " + gcs_token()!, "Content-Type": "application/json"])!
+        if status == 200 then ok(()) else err("GCS write: HTTP ${status}")
+      },
+      none => err("no storage configured"),
+    },
+  }
+
+effect fn read_all(keys: List[String], acc: List[(String, Value)]) -> Result[List[(String, Value)], String] =
+  match list.first(keys) {
+    none => ok(acc),
+    some(key) => {
+      let stored = match read_key(key)! {
+        some(text) => value.str(text),
+        none => value.null(),
+      }
+      read_all(list.drop(keys, 1), list.flatten([acc, [(key, stored)]]))
+    },
+  }
+
+fn unavailable() -> Value = json.parse(
+  "{\"status\":503,\"body\":{\"error\":\"storage_unavailable\"}}") ?? value.null()
+
+// Runs api.step to a final envelope, reading what it asks for (at most twice)
+// and making its write. Native http.serve is sequential, so the read-modify-write
+// of one request cannot interleave with another's in this process.
+effect fn run(method: String, target: String, body: String, reads: List[(String, Value)], round: Int) -> Value = {
+  let envelope = json.parse(api.step(method, target, body, json.stringify(value.object(reads))))!
+  match json.get_array(envelope, "read") {
+    some(keys) => if round >= 2 then unavailable() else {
+      let names = list.filter_map(keys, (k) => match value.as_string(k) { ok(s) => some(s), err(_) => none })
+      match read_all(names, reads) {
+        ok(more) => run(method, target, body, more, round + 1)!,
+        err(e) => { eprintln("storage read failed: ${e}"); unavailable() },
+      }
+    },
+    none => match json.get_path(envelope, json.field(json.root(), "write")) {
+      none => envelope,
+      some(w) => {
+        let key = json.get_string(w, "key") ?? ""
+        let content = json.get_string(w, "value") ?? ""
+        match write_key(key, content) {
+          ok(_) => envelope,
+          err(e) => { eprintln("storage write failed: ${e}"); unavailable() },
+        }
+      },
+    },
+  }
+}
 
 effect fn handle(req: HttpRequest) -> HttpResponse = {
-  let envelope = json.parse(api.handle(http.req_method(req), http.req_path(req), http.req_body(req)))!
+  let envelope = run(http.req_method(req), http.req_path(req), http.req_body(req), [], 0)!
   let status = json.get_int(envelope, "status") ?? 500
   let body = json.get_path(envelope, json.field(json.root(), "body")) ?? value.null()
   let response = http.json(status, json.stringify(body))
@@ -17,5 +123,9 @@ effect fn handle(req: HttpRequest) -> HttpResponse = {
 effect fn main() -> Unit = {
   let port_text = env.get("PORT") ?? "8080"
   let port = int.parse(port_text)!
+  match nonempty(env.get("STORE_DIR")) {
+    some(dir) => fs.mkdir_p(dir)!,
+    none => (),
+  }
   http.serve(port, (req) => handle(req)!)!
 }
