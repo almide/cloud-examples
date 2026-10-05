@@ -310,8 +310,8 @@ and passed as `ALMIDE_BIN`. Node 24.21.0, Wrangler 4.147.0.
 
 The Wasm route used to return `step`'s reads and write to the JS host, which
 performed them (`adapters/step.mjs`). Now `src/wasm.almd` runs the same loop as
-the native host and calls the hooks `store_get` / `store_put` itself. The build
-passes `--async-import store_get,store_put`; the generated `app.d.ts` has
+the native host and calls the hooks `store_get` / `store_put` itself. Their
+`@extern` carries `returns: promise`; the generated `app.d.ts` has
 `serve(...): Promise<string>` and `handle(...): string`.
 `adapters/store.mjs` binds the hooks to a store.
 

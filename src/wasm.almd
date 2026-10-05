@@ -3,17 +3,17 @@ import json
 
 // --- Storage on JS hosts -----------------------------------------------------
 // The host binds these two hooks to its store (Workers KV, Cloud Storage, or
-// memory). Its I/O is asynchronous; the build marks both hooks with
-// --async-import, so the glue suspends this module through JSPI until each
-// settles and they read here as ordinary calls.
+// memory). Its I/O is asynchronous; `returns: promise` marks both hooks, so
+// the glue suspends this module through JSPI until each settles and they read
+// here as ordinary calls.
 //
 // store_get answers {"value": <string or null>} or {"error": <message>}.
 // store_put answers "" when the write is made, otherwise the error message.
 
-@extern(wasm, "js", "store_get")
+@extern(wasm, "js", "store_get", returns: promise)
 local fn store_get(key: String) -> String
 
-@extern(wasm, "js", "store_put")
+@extern(wasm, "js", "store_put", returns: promise)
 local fn store_put(key: String, content: String) -> String
 
 local fn read_key(key: String) -> Result[Value, String] = match json.parse(store_get(key)) {

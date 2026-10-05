@@ -37,7 +37,7 @@ for the exact evidence.
 `/notes` is stored in the KV binding `NOTES`. Almide reads and writes it itself:
 `src/wasm.almd` calls the hooks `store_get` / `store_put`, and `worker.js` binds
 them to `env.NOTES` ([adapters/store.mjs](../../adapters/store.mjs)). KV only
-returns Promises, so the build marks the hooks `--async-import`, and the generated
+returns Promises, so the hooks' `@extern` carries `returns: promise`, and the generated
 JS suspends the module through JSPI until each KV call settles (root README,
 "Storage: Almide drives every route").
 

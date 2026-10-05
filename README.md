@@ -166,8 +166,8 @@ end with its own store:
 This loop is Almide code on every route. On native it calls `fs` or
 `http.request` directly. On the JS hosts, Workers KV, `fetch` and Cloud Storage
 only return Promises, so [src/wasm.almd](src/wasm.almd) declares two hooks,
-`store_get(key)` and `store_put(key, value)`, as ordinary functions. The build
-marks them `--async-import store_get,store_put`. The generated JS then suspends
+`store_get(key)` and `store_put(key, value)`, as ordinary functions whose
+`@extern` carries `returns: promise`. The generated JS then suspends
 the module through JSPI (`WebAssembly.Suspending` / `promising`) until each hook
 settles. Only `serve`, which reaches the hooks, returns a Promise; `handle` stays
 synchronous. The JS side binds each hook to one store call
@@ -180,9 +180,10 @@ was still 24.19.0, so Cloud Run functions was verified on `nodejs26` (beta, Node
 26.7.0). Check the patch version of the Lambda and Azure Functions runtimes
 before relying on `/notes` there.
 
-`--async-import` is not in the pinned v0.66.0 release. It is on Almide's
-`fix-3353` branch ([almide/almide#3353](https://github.com/almide/almide/issues/3353)).
-Until it ships, build that compiler and point `ALMIDE_BIN` at it.
+`returns: promise` is not in the pinned v0.66.0 release. It ships in v0.67.0
+([almide/almide#3353](https://github.com/almide/almide/issues/3353),
+[#3371](https://github.com/almide/almide/issues/3371)). Until then, build Almide's
+`develop` and point `ALMIDE_BIN` at it.
 
 | Route | Store | Who calls it |
 | --- | --- | --- |
