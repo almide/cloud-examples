@@ -302,6 +302,69 @@ Live:
 Not shown: behavior under concurrent writers. The single-key read-modify-write
 has no conditional write, so concurrent instances can lose a note.
 
+## /notes on JS hosts: Almide calls the store through JSPI
+
+Date: 2026-10-04. Compiler: Almide `fix-3353` at `e9eb4bb90` (unreleased,
+[almide/almide#3353](https://github.com/almide/almide/issues/3353)), built locally
+and passed as `ALMIDE_BIN`. Node 24.21.0, Wrangler 4.147.0.
+
+The Wasm route used to return `step`'s reads and write to the JS host, which
+performed them (`adapters/step.mjs`). Now `src/wasm.almd` runs the same loop as
+the native host and calls the hooks `store_get` / `store_put` itself. Their
+`@extern` carries `returns: promise`; the generated `app.d.ts` has
+`serve(...): Promise<string>` and `handle(...): string`.
+`adapters/store.mjs` binds the hooks to a store.
+
+Local:
+
+1. `npm test`: 158/158. Under Node 22 (no JSPI) the storage tests fail, and
+   `init()` refuses with a message naming the missing JSPI
+2. `npm run test:workers` (local workerd, fresh KV state): 29/29
+3. 20 concurrent `POST /notes` to local workerd: 20 × 201, and all 20 notes stored
+   with distinct `n` (one isolate runs one call at a time)
+4. `npm run check:workers`: bundle 41.05 KiB, `NOTES` bound
+
+Live (Cloudflare Workers, deployed with `wrangler deploy`, then deleted):
+
+1. KV namespace provisioned from the id-less binding; 18 cases + the scenario
+   passed (29/29)
+2. `wrangler tail`: 22 requests, every outcome `ok`, 0 exceptions
+3. 20 concurrent `POST /notes`: 20 × 201, but the list grew by only 5. Requests
+   spread over several isolates, and each does a read-modify-write of one KV key
+   with no conditional write. This is the limitation the root README describes,
+   now measured. It is unchanged by this route
+4. `wrangler delete` and `wrangler kv namespace delete`; the URL then answered
+   Cloudflare error 1042 (no Worker)
+
+Live (Cloud Run functions, `providers/google-cloud-functions/terraform`, a new
+disposable project deleted afterwards; probe VM with no external IP, Private
+Google Access, IAP SSH, as in the earlier Google runs):
+
+1. Apply with the default `nodejs24`: 16 resources in 161 s. Every request
+   answered 500, and the log showed the generated refusal: "this module awaits
+   async JS imports (store_get, store_put) through JSPI, and this runtime has no
+   WebAssembly.Suspending / WebAssembly.promising". Google's `nodejs24` image tags
+   ran up to `nodejs24_20260926_24_19_0_RC00`, which is Node 24.19.0. Locally,
+   JSPI is on by default from 24.20.0 (24.0.0 through 24.19.0: off; 24.20.0,
+   24.21.0, 25.9.0, 26.10.0: on). On 24.19.0, `--experimental-wasm-jspi` enables
+   it, but Node refuses that flag in `NODE_OPTIONS`, and
+   `v8.setFlagsFromString` at run time does not install the API
+2. Terraform gained `var.runtime` (default `nodejs24`), and `deploy.sh` gained
+   `GCP_BASE_IMAGE`. Re-applied with `runtime = nodejs26` (beta, image
+   `nodejs26_20260929_26_7_0_RC00`): 1 changed in 65 s
+3. From the VM with an ID token: 18/18 as octet-stream, the `/notes` scenario
+   11/11, and as JSON the same 3 known framework rejections. Without a token: 403
+4. The bucket's `notes` object held exactly the two saved notes
+   (`application/json`, 53 bytes), written by Almide through `store_put`
+5. 20 concurrent `POST /notes` (max 3 instances, concurrency 1): 17 × 201 and
+   3 × 503. The 503s were Almide's `storage_unavailable` after Cloud Storage
+   answered 429 to rapid writes of one object. Almide logged
+   `storage write failed: GCS write: HTTP 429` itself. 14 of the 17 accepted
+   notes were kept; the rest were lost to the read-modify-write race
+6. `terraform destroy` removed 16 resources; the project was deleted
+
+CI's Node was 24.19.0, so it moved to 24.21.0. `engines` now says `>=24.20.0`.
+
 ## Terraform for Cloudflare and Google
 
 Date: 2026-10-04, Terraform 1.14.9, providers cloudflare 5.26.0, google 8.5.0,
@@ -354,7 +417,7 @@ the operator's /32 only); the provider installed with `go install` and
 ## Not established
 
 - Native x86_64 Docker build outside the ConoHa VPS
-- `/notes` under concurrent writers on any route
+- `/notes` under concurrent writers is safe on any route (measured on Workers: writes are lost across isolates)
 - ConoHa TLS/reverse proxy, restart behavior, production load, or plans smaller
   than `g2l-t-c4m4`
 - Azure Container Apps or ECS Fargate provider validation/deployment

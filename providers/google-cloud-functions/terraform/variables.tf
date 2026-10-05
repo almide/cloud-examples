@@ -8,6 +8,14 @@ variable "region" {
   default = "asia-northeast1"
 }
 
+variable "runtime" {
+  # JSPI (the async storage hooks) is on by default from Node 24.20. Google's
+  # nodejs24 image was 24.19.0 on 2026-10-04; nodejs26 (beta) had 26.7.0.
+  description = "Cloud Run functions runtime; it must provide JSPI"
+  type        = string
+  default     = "nodejs24"
+}
+
 variable "name" {
   description = "Function name and prefix of what is created with it"
   type        = string

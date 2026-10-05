@@ -31,7 +31,7 @@ See [verification notes](docs/verification.md#compiler-pin-moved-to-the-v0660-re
 | --- | --- | --- | --- |
 | Linux x86_64 native HTTP | Passed locally | 18 cases passed over HTTP | Not deployed |
 | macOS arm64 native HTTP | Passed locally with the `--release` installer | 18 cases passed over HTTP | Not applicable |
-| Wasm + generated JS, Node 24.19.0 | Passed locally | Same 18 cases + 1,000 repeated string calls | Not applicable |
+| Wasm + generated JS, Node 24.21.0 | Passed locally | Same 18 cases + 1,000 repeated string calls; `/notes` through the JSPI store hooks | Not applicable |
 | Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed; real `wrangler deploy` uploaded | Same 18 cases passed over HTTP locally and on the workers.dev edge | Deployed temporarily with Wrangler and with [Terraform](providers/cloudflare-workers/terraform/), verified, deleted |
 | ConoHa Docker / Compose | Image built and Compose started on macOS arm64 (Docker 29.6.1) and on a ConoHa VPS, x86_64 (Docker 29.2.1, Compose v5.0.2) | Same 18 cases passed against the container on both | VPS created with [Terraform](providers/conoha/terraform/), verified, destroyed |
 | Google Cloud Run container | linux/amd64 image built (QEMU on Apple silicon), pushed by digest; `replace --dry-run` and deploy passed | Same 18 cases passed from a VM inside the VPC with an ID token | Deployed temporarily with internal ingress + IAM, by gcloud and by [Terraform](providers/google-cloud-run/terraform/), verified, deleted |
@@ -138,37 +138,58 @@ authentication emulators.
 [src/api.almd](src/api.almd) owns path routing, input validation, response status,
 JSON encoding, method errors and what to store. Its public boundary is strings in
 and one JSON envelope out: `step(method, target, body, reads) -> String`
-(`handle(method, target, body)` is the same without storage).
+(`handle(method, target, body)` is the same without storage). Each host runs
+`step` to the end with its own storage, in Almide.
 
 - [src/native.almd](src/native.almd) maps Almide HTTP requests/responses, and performs storage itself
-- [src/wasm.almd](src/wasm.almd) exposes the same functions to generated JS
+- [src/wasm.almd](src/wasm.almd) runs `step` with two storage hooks and exports `serve` (and `handle`) to generated JS
 - [worker.js](providers/cloudflare-workers/worker.js) maps Workers Request/Response, with KV as the store
 - [adapters/node-wasm.mjs](adapters/node-wasm.mjs) shares one lazy Wasm initializer across Node function adapters
-- [adapters/step.mjs](adapters/step.mjs) runs `step` for the JS hosts; [adapters/gcs-store.mjs](adapters/gcs-store.mjs) is Cloud Storage for Node
+- [adapters/store.mjs](adapters/store.mjs) binds the hooks to a store for the JS hosts; [adapters/gcs-store.mjs](adapters/gcs-store.mjs) is Cloud Storage for Node
 - [tests/cases.mjs](tests/cases.mjs) and [tests/notes.mjs](tests/notes.mjs) are the shared expected-behavior fixtures
 
 The HTTP response contains the envelope's `body`; `status` and optional `allow`
 become HTTP metadata. The host adapters do not duplicate the application logic.
 
-### Storage: Almide decides, the host performs
+### Storage: Almide drives every route
 
-The generated JS host has no asynchronous I/O, and a stock Wasm build refuses
-Almide's HTTP client (`http.get` is E081 on `--target wasm`), while Workers KV,
-`fetch` and Cloud Storage are asynchronous. So the shared code describes storage
-instead of doing it:
+`step` describes storage instead of doing it, so that each host can run it to the
+end with its own store:
 
-1. The host calls `step(method, target, body, "{}")`.
-2. If the envelope has `"read": ["notes"]`, the host reads those keys and calls
-   `step` again with `reads` = `{"notes": "<stored text>" | null}`.
+1. Call `step(method, target, body, "{}")`.
+2. If the envelope has `"read": ["notes"]`, read those keys and call `step` again
+   with `reads` = `{"notes": "<stored text>" | null}`.
 3. The envelope with `"status"` is final. If it has `"write": {"key", "value"}`,
-   the host stores it before answering; a failed read or write answers 503
+   store it before answering; a failed read or write answers 503
    `storage_unavailable`.
 
-| Route | Store | Who performs it |
+This loop is Almide code on every route. On native it calls `fs` or
+`http.request` directly. On the JS hosts, Workers KV, `fetch` and Cloud Storage
+only return Promises, so [src/wasm.almd](src/wasm.almd) declares two hooks,
+`store_get(key)` and `store_put(key, value)`, as ordinary functions whose
+`@extern` carries `returns: promise`. The generated JS then suspends
+the module through JSPI (`WebAssembly.Suspending` / `promising`) until each hook
+settles. Only `serve`, which reaches the hooks, returns a Promise; `handle` stays
+synchronous. The JS side binds each hook to one store call
+([adapters/store.mjs](adapters/store.mjs)) and does nothing else.
+
+JSPI is on by default in workerd, Node 25+ and Node **24.20.0+**; Node 24.19.0 and
+earlier lack it, and `init()` then refuses with a message saying so. A managed
+"Node 24" runtime is not enough by itself: on 2026-10-04 Google's `nodejs24` image
+was still 24.19.0, so Cloud Run functions was verified on `nodejs26` (beta, Node
+26.7.0). Check the patch version of the Lambda and Azure Functions runtimes
+before relying on `/notes` there.
+
+`returns: promise` is not in the pinned v0.66.0 release. It ships in v0.67.0
+([almide/almide#3353](https://github.com/almide/almide/issues/3353),
+[#3371](https://github.com/almide/almide/issues/3371)). Until then, build Almide's
+`develop` and point `ALMIDE_BIN` at it.
+
+| Route | Store | Who calls it |
 | --- | --- | --- |
 | Native (ConoHa, Cloud Run container) | `STORE_DIR` files, or `GCS_BUCKET` objects | Almide: `fs`, or `http.request` with a metadata-server token |
-| Cloudflare Workers | KV binding `NOTES` | `worker.js` |
-| Cloud Run functions | `GCS_BUCKET` objects | `adapters/gcs-store.mjs` (`fetch`, no SDK) |
+| Cloudflare Workers | KV binding `NOTES` | Almide, through the `store_get` / `store_put` hooks bound to `env.NOTES` |
+| Cloud Run functions | `GCS_BUCKET` objects | Almide, through the hooks bound to `adapters/gcs-store.mjs` (`fetch`, no SDK) |
 | Lambda, Azure Functions | none configured | `/notes` answers 503 |
 
 `/notes` keeps one JSON list under the key `notes`: `POST {"text": ...}` (1–280

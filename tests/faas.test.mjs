@@ -115,7 +115,7 @@ test('warm and overlapping invocations remain isolated', async () => {
 
 test('Node function host runs the notes scenario against an injected store', async t => {
   const { callApi } = await import('../adapters/node-wasm.mjs');
-  const { memoryStore } = await import('../adapters/step.mjs');
+  const { memoryStore } = await import('../adapters/store.mjs');
   const store = memoryStore();
   const { verifyNotes } = await import('./notes.mjs');
   await verifyNotes(t, async (method, path, body) => {
