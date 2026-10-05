@@ -31,7 +31,7 @@ See [verification notes](docs/verification.md#compiler-pin-moved-to-the-v0660-re
 | --- | --- | --- | --- |
 | Linux x86_64 native HTTP | Passed locally | 18 cases passed over HTTP | Not deployed |
 | macOS arm64 native HTTP | Passed locally with the `--release` installer | 18 cases passed over HTTP | Not applicable |
-| Wasm + generated JS, Node 24.19.0 | Passed locally | Same 18 cases + 1,000 repeated string calls | Not applicable |
+| Wasm + generated JS, Node 24.21.0 | Passed locally | Same 18 cases + 1,000 repeated string calls; `/notes` through the JSPI store hooks | Not applicable |
 | Workers, Wrangler 4.147.0 / local workerd | Dry-run bundle passed; real `wrangler deploy` uploaded | Same 18 cases passed over HTTP locally and on the workers.dev edge | Deployed temporarily with Wrangler and with [Terraform](providers/cloudflare-workers/terraform/), verified, deleted |
 | ConoHa Docker / Compose | Image built and Compose started on macOS arm64 (Docker 29.6.1) and on a ConoHa VPS, x86_64 (Docker 29.2.1, Compose v5.0.2) | Same 18 cases passed against the container on both | VPS created with [Terraform](providers/conoha/terraform/), verified, destroyed |
 | Google Cloud Run container | linux/amd64 image built (QEMU on Apple silicon), pushed by digest; `replace --dry-run` and deploy passed | Same 18 cases passed from a VM inside the VPC with an ID token | Deployed temporarily with internal ingress + IAM, by gcloud and by [Terraform](providers/google-cloud-run/terraform/), verified, deleted |
