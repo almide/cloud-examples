@@ -17,11 +17,9 @@ fn nonempty(o: Option[String]) -> Option[String] = match o {
 }
 
 effect fn gcs_token() -> Result[String, String] = {
-  let (status, body) = http.request_status("GET",
-    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-    "", ["Metadata-Flavor": "Google"])!
+  let (status, body) = (http.send(http.new_request("GET", "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", "", [("Metadata-Flavor", "Google")])) |> result.map((resp) => (http.status(resp), http.body(resp))))!
   if status != 200 then err("metadata token: HTTP ${status}")
-  else match json.get_string(json.parse(body)!, "access_token") {
+  else match value.get_string(json.parse(body)!, "access_token") {
     some(token) => ok(token),
     none => err("metadata token: no access_token"),
   }
@@ -36,9 +34,7 @@ effect fn read_key(key: String) -> Result[Option[String], String] =
     none => match nonempty(env.get("GCS_BUCKET")) {
       some(bucket) => {
         let object = url.encode_component(key)
-        let (status, body) = http.request_status("GET",
-          "https://storage.googleapis.com/storage/v1/b/${bucket}/o/${object}?alt=media",
-          "", ["Authorization": "Bearer " + gcs_token()!])!
+        let (status, body) = (http.send(http.new_request("GET", "https://storage.googleapis.com/storage/v1/b/${bucket}/o/${object}?alt=media", "", [("Authorization", "Bearer " + gcs_token()!)])) |> result.map((resp) => (http.status(resp), http.body(resp))))!
         if status == 200 then ok(some(body))
         else if status == 404 then ok(none)
         else err("GCS read: HTTP ${status}")
@@ -52,15 +48,13 @@ effect fn write_key(key: String, content: String) -> Result[Unit, String] =
     some(dir) => {
       // Write then rename, so a reader never sees a half-written file.
       let path = "${dir}/${key}.json"
-      fs.write(path + ".tmp", content)!
+      fs.write_text(path + ".tmp", content)!
       fs.rename(path + ".tmp", path)
     },
     none => match nonempty(env.get("GCS_BUCKET")) {
       some(bucket) => {
         let object = url.encode_component(key)
-        let (status, _) = http.request_status("POST",
-          "https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${object}",
-          content, ["Authorization": "Bearer " + gcs_token()!, "Content-Type": "application/json"])!
+        let (status, _) = (http.send(http.new_request("POST", "https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${object}", content, [("Authorization", "Bearer " + gcs_token()!), ("Content-Type", "application/json")])) |> result.map((resp) => (http.status(resp), http.body(resp))))!
         if status == 200 then ok(()) else err("GCS write: HTTP ${status}")
       },
       none => err("no storage configured"),
@@ -72,7 +66,7 @@ effect fn read_all(keys: List[String], acc: List[(String, Value)]) -> Result[Lis
     none => ok(acc),
     some(key) => {
       let stored = match read_key(key)! {
-        some(text) => value.str(text),
+        some(text) => value.string(text),
         none => value.null(),
       }
       read_all(list.drop(keys, 1), list.flatten([acc, [(key, stored)]]))
@@ -87,7 +81,7 @@ fn unavailable() -> Value = json.parse(
 // of one request cannot interleave with another's in this process.
 effect fn run(method: String, target: String, body: String, reads: List[(String, Value)], round: Int) -> Value = {
   let envelope = json.parse(api.step(method, target, body, json.stringify(value.object(reads))))!
-  match json.get_array(envelope, "read") {
+  match value.get_array(envelope, "read") {
     some(keys) => if round >= 2 then unavailable() else {
       let names = list.filter_map(keys, (k) => match value.as_string(k) { ok(s) => some(s), err(_) => none })
       match read_all(names, reads) {
@@ -95,11 +89,11 @@ effect fn run(method: String, target: String, body: String, reads: List[(String,
         err(e) => { eprintln("storage read failed: ${e}"); unavailable() },
       }
     },
-    none => match json.get_path(envelope, json.field(json.root(), "write")) {
+    none => match value.get_path(envelope, value.key(value.root(), "write")) {
       none => envelope,
       some(w) => {
-        let key = json.get_string(w, "key") ?? ""
-        let content = json.get_string(w, "value") ?? ""
+        let key = value.get_string(w, "key") ?? ""
+        let content = value.get_string(w, "value") ?? ""
         match write_key(key, content) {
           ok(_) => envelope,
           err(e) => { eprintln("storage write failed: ${e}"); unavailable() },
@@ -110,11 +104,11 @@ effect fn run(method: String, target: String, body: String, reads: List[(String,
 }
 
 effect fn handle(req: HttpRequest) -> HttpResponse = {
-  let envelope = run(http.req_method(req), http.req_path(req), http.req_body(req), [], 0)!
-  let status = json.get_int(envelope, "status") ?? 500
-  let body = json.get_path(envelope, json.field(json.root(), "body")) ?? value.null()
+  let envelope = run(http.method(req), http.path(req), http.body(req), [], 0)!
+  let status = value.get_int(envelope, "status") ?? 500
+  let body = value.get_path(envelope, value.key(value.root(), "body")) ?? value.null()
   let response = http.json(status, json.stringify(body))
-  match json.get_string(envelope, "allow") {
+  match value.get_string(envelope, "allow") {
     some(allow) => http.set_header(response, "Allow", allow),
     none => response,
   }
