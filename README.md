@@ -185,9 +185,8 @@ conditional write; this is a demonstration of the boundary, not a database.
 - `name` must be a string of 1–100 Unicode code points; it is not trimmed
 - Request body limit in shared logic: 8,192 Unicode code points
 - Application errors are JSON: 400, 404, 405 with `Allow`, and 413
-- Almide's current JSON parser is **lenient**, including accepting trailing text.
-  The test suite records that behavior explicitly; this example does not claim
-  strict RFC JSON validation
+- Almide's JSON parser rejects text after the JSON value (since v0.69.0), so a
+  trailing-text body is answered 400 `invalid_json`; the test suite records it
 - Native transport has its own limits: one request at a time, a 1 MiB wire-body
   ceiling and 30-second read/response limits. Rejections before the shared handler
   need not have the same JSON shape as application errors

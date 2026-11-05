@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { cases } from './cases.mjs';
 import { freePort, startServer } from './http-harness.mjs';
 
-const frameworkRejected = new Set(['invalid JSON', 'body limit', 'known lenient trailing text']);
+const frameworkRejected = new Set(['invalid JSON', 'body limit', 'trailing text']);
 
 test('Google Functions Framework: JSON prevalidation is an explicit host boundary', async t => {
   const port = await freePort();

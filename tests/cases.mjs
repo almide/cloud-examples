@@ -18,6 +18,6 @@ export const cases = [
   { name: 'wrong health method', allow: 'GET', method: 'POST', path: '/health', status: 405, json: { error: 'method_not_allowed' } },
   { name: 'wrong greeting method', allow: 'POST', method: 'GET', path: '/greet', status: 405, json: { error: 'method_not_allowed' } },
   { name: 'unknown path', method: 'GET', path: '/missing', status: 404, json: { error: 'not_found' } },
-  // Explicit upstream behavior, not a promise of strict RFC JSON parsing.
-  { name: 'known lenient trailing text', method: 'POST', path: '/greet', body: '{"name":"Almide"} trailing', status: 200, json: { message: 'Hello, Almide!' } },
+  // Almide's JSON parser rejects text after the value (since v0.69.0).
+  { name: 'trailing text', method: 'POST', path: '/greet', body: '{"name":"Almide"} trailing', status: 400, json: { error: 'invalid_json' } },
 ];
