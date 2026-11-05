@@ -9,22 +9,22 @@ fn reply(status: Int, body: Value) -> String = json.stringify(value.object([
 ]))
 
 fn error(status: Int, message: String) -> String = reply(status, value.object([
-  ("error", value.str(message)),
+  ("error", value.string(message)),
 ]))
 
 fn method_error(allow: String) -> String = json.stringify(value.object([
   ("status", value.int(405)),
-  ("body", value.object([("error", value.str("method_not_allowed"))])),
-  ("allow", value.str(allow)),
+  ("body", value.object([("error", value.string("method_not_allowed"))])),
+  ("allow", value.string(allow)),
 ]))
 
 fn greet(body: String) -> String = match json.parse(body) {
   err(_) => error(400, "invalid_json"),
-  ok(data) => match json.get_string(data, "name") {
+  ok(data) => match value.get_string(data, "name") {
     none => error(400, "name_required"),
     some(name) => if string.len(name) == 0 or string.len(name) > 100 then
       error(400, "name_length")
-    else reply(200, value.object([("message", value.str("Hello, " + name + "!"))])),
+    else reply(200, value.object([("message", value.string("Hello, " + name + "!"))])),
   },
 }
 
@@ -43,12 +43,12 @@ pub fn handle(method: String, target: String, body: String) -> String = {
 // --- /notes: a small list kept by the host under one key ---------------------
 
 fn read_request(key: String) -> String = json.stringify(value.object([
-  ("read", value.array([value.str(key)])),
+  ("read", value.array([value.string(key)])),
 ]))
 
 // none: the host has not read `key` yet; some(none): it did, and nothing is stored.
 fn lookup(reads: Value, key: String) -> Option[Option[String]] =
-  match json.get_path(reads, json.field(json.root(), key)) {
+  match value.get_path(reads, value.key(value.root(), key)) {
     none => none,
     some(v) => match value.as_string(v) {
       ok(text) => some(some(text)),
@@ -66,7 +66,7 @@ fn stored_notes(doc: Option[String]) -> Result[List[Value], String] = match doc 
 
 fn note_text(body: String) -> Result[String, String] = match json.parse(body) {
   err(_) => err("invalid_json"),
-  ok(data) => match json.get_string(data, "text") {
+  ok(data) => match value.get_string(data, "text") {
     none => err("text_required"),
     some(text) => if string.len(text) == 0 or string.len(text) > 280 then err("text_length")
       else ok(text),
@@ -78,17 +78,17 @@ fn list_notes(notes: List[Value]) -> String =
 
 fn add_note(notes: List[Value], text: String) -> String = {
   let n = match list.last(notes) {
-    some(last) => (json.get_int(last, "n") ?? 0) + 1,
+    some(last) => (value.get_int(last, "n") ?? 0) + 1,
     none => 1,
   }
-  let note = value.object([("n", value.int(n)), ("text", value.str(text))])
+  let note = value.object([("n", value.int(n)), ("text", value.string(text))])
   let kept = list.take_end(list.flatten([notes, [note]]), 50)
   json.stringify(value.object([
     ("status", value.int(201)),
     ("body", value.object([("note", note)])),
     ("write", value.object([
-      ("key", value.str("notes")),
-      ("value", value.str(json.stringify(value.array(kept)))),
+      ("key", value.string("notes")),
+      ("value", value.string(json.stringify(value.array(kept)))),
     ])),
   ]))
 }
