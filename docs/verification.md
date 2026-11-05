@@ -49,7 +49,7 @@ The native application was built with normal `almide build`.
 The shared tests cover health, query stripping, success, Unicode, JSON escaping,
 malformed JSON, empty body, missing/wrong-type name, non-object input, name
 length boundaries, shared body limit, method rejection with Allow, unknown path,
-and the known lenient trailing-text parser behavior.
+and a body with trailing text after the JSON value (rejected as invalid JSON).
 
 Installer regression tests use real local Git status/checkout and stub network fetch
 and Cargo compilation; they are not a claim that the full release bootstrap ran.
